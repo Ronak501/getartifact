@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useBlueprintStore, { PHASES } from '@store/blueprintStore'
 import { useAIBuilder } from '@hooks/useAIBuilder'
+import { usePromptAutosave } from '@hooks/usePromptAutosave'
 import { sampleBlueprints } from '@templates/sampleBlueprints'
 import Button from '@components/ui/Button'
 import PhaseIndicator from '@components/ui/PhaseIndicator'
@@ -11,6 +12,7 @@ const PLACEHOLDER = 'Describe your website... e.g. "Build a futuristic AI SaaS p
 export default function PromptInput() {
   const { prompt, setPrompt, phase, phaseLabel, phaseProgress } = useBlueprintStore()
   const { run } = useAIBuilder()
+  const saveStatus = usePromptAutosave()
   const [focused, setFocused] = useState(false)
   const textareaRef = useRef(null)
 
@@ -80,8 +82,9 @@ export default function PromptInput() {
 
           {/* Bottom bar */}
           <div className="absolute bottom-3 inset-x-3 flex items-center justify-between">
-            <span className="text-2xs text-white/20 font-mono select-none">
+            <span className="text-2xs text-white/20 font-mono select-none flex items-center gap-1.5">
               {prompt.length} chars · ⌘+Enter to generate
+              <SaveStatusPill status={saveStatus} />
             </span>
             <Button
               type="submit"
@@ -114,6 +117,31 @@ export default function PromptInput() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+const SAVE_LABEL = {
+  saving: { text: 'saving…',    color: 'text-white/30' },
+  saved:  { text: 'draft saved', color: 'text-emerald-400/70' },
+  error:  { text: 'save failed', color: 'text-red-400/70' },
+}
+
+function SaveStatusPill({ status }) {
+  const info = SAVE_LABEL[status]
+  if (!info) return null
+  return (
+    <AnimatePresence mode="wait">
+      <motion.span
+        key={status}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.25 }}
+        className={`font-sans ${info.color}`}
+      >
+        · {info.text}
+      </motion.span>
+    </AnimatePresence>
   )
 }
 
