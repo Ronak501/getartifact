@@ -8,18 +8,18 @@
 import { create } from 'zustand'
 
 export const PHASES = {
-  IDLE:       'idle',
-  ANALYZING:  'analyzing',
-  GENERATING: 'generating',   // Claude → architecture blueprint
-  WEBSITE:    'website',      // Claude → render-ready website JSON
-  VEO:        'veo',          // Gemini → cinematic Veo prompt
-  BUILDING:   'building',     // local  → React + Three.js code
-  READY:      'ready',
-  ERROR:      'error',
+  IDLE:            'idle',
+  STORYBOARD:      'storyboard',      // AI generates storyboard
+  VIDEO_RENDERING: 'video_rendering', // Veo rendering
+  USER_REVIEW:     'user_review',     // Gated review state
+  VISION_ANALYSIS: 'vision_analysis',  // Vision AI analysis
+  CODE_GENERATION: 'code_generation',  // Generating React/Next.js/R3F components
+  READY:           'ready',
+  ERROR:           'error',
 }
 
 export const OUTPUT_TABS = {
-  PREVIEW:   'preview',   // ← Code + Live Preview split pane (NEW default)
+  PREVIEW:   'preview',   // ← Code + Live Preview split pane
   BLUEPRINT: 'blueprint', // ← Architecture JSON
   VIDEO:     'video',     // ← Veo prompt + video player
   SCRIPT:    'script',    // ← Storyboard
@@ -47,6 +47,26 @@ const useBlueprintStore = create((set, get) => ({
   websiteBlueprint: null,   // render-ready website JSON (new schema)
   intent:           null,
   veoData:          null,
+  storyboard:       null,   // Storyboard document
+  approved:         false,  // User review approval state
+
+  // ── Video-first output ────────────────────────────────────────────────────
+  videoUrl:      null,    // URL of the rendered Veo 2 video (null while rendering)
+  videoProgress: 0,       // 0–1 progress of background video render
+  videoSite:     null,    // { heroJSX, sectionsJSX, navbarJSX, ... } from video-site pipeline
+
+  setVideoUrl: (url) => {
+    set({ videoUrl: url })
+    // Inject the URL into the hero component if videoSite is already built
+    const vs = useBlueprintStore.getState().videoSite
+    if (vs?.heroJSX) {
+      set({ videoSite: { ...vs, heroJSX: vs.heroJSX.replace(/const VIDEO_URL = '[^']*'/, `const VIDEO_URL = '${url}'`) } })
+    }
+  },
+
+  setVideoProgress: (p) => set({ videoProgress: p }),
+
+  setVideoSite: (site) => set({ videoSite: site }),
 
   // Atomic finish — sets all final state in one call to avoid race conditions
   finishGeneration: (blueprint, intent, websiteBlueprint, veoData) => {
@@ -94,7 +114,9 @@ const useBlueprintStore = create((set, get) => ({
 
   clearBlueprint: () => set({
     blueprint: null, websiteBlueprint: null, intent: null,
-    veoData: null, phase: PHASES.IDLE,
+    veoData: null, videoUrl: null, videoProgress: 0, videoSite: null,
+    storyboard: null, approved: false,
+    phase: PHASES.IDLE,
   }),
 
   // ── UI state ──────────────────────────────────────────────────────────────
@@ -110,6 +132,10 @@ const useBlueprintStore = create((set, get) => ({
     blueprint:        entry.blueprint,
     websiteBlueprint: entry.blueprint?.websiteBlueprint ?? null,
     veoData:          entry.blueprint?.veoData ?? null,
+    videoSite:        entry.blueprint?.videoSite ?? null,
+    videoUrl:         entry.blueprint?.videoUrl ?? null,
+    storyboard:       entry.blueprint?.storyboard ?? null,
+    approved:         entry.blueprint?.approved ?? false,
     intent:           entry.intent,
     prompt:           entry.prompt,
     phase:            PHASES.READY,

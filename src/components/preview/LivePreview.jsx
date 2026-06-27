@@ -39,6 +39,14 @@ const ANIM_CSS = `
 @keyframes lp-cryst  { from{transform:rotateY(0deg) rotateX(20deg)} to{transform:rotateY(360deg) rotateX(20deg)} }
 @keyframes lp-planet { from{transform:rotateZ(0deg)}   to{transform:rotateZ(360deg)} }
 @keyframes lp-twinkle{ 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1.2)} }
+@keyframes lp-holo  { 0%,100%{opacity:.6;filter:hue-rotate(0deg)} 50%{opacity:1;filter:hue-rotate(180deg)} }
+@keyframes lp-scan  { 0%{top:-10%} 100%{top:110%} }
+@keyframes lp-wire  { from{transform:rotateY(0deg) rotateX(25deg)} to{transform:rotateY(360deg) rotateX(25deg)} }
+@keyframes lp-morph { 0%,100%{border-radius:60% 40% 50% 50%/40% 60% 50% 60%;transform:rotate(0deg) scale(1)}
+                       33%{border-radius:40% 60% 60% 40%/50% 30% 70% 50%;transform:rotate(120deg) scale(1.08)}
+                       66%{border-radius:50% 50% 40% 60%/60% 40% 60% 40%;transform:rotate(240deg) scale(0.96)} }
+@keyframes lp-rain  { 0%{transform:translateY(-100%);opacity:0} 10%{opacity:.8} 90%{opacity:.6} 100%{transform:translateY(100vh);opacity:0} }
+@keyframes lp-vortex{ from{transform:rotateZ(0deg)} to{transform:rotateZ(360deg)} }
 `
 
 export function injectLPCss() {
@@ -84,12 +92,19 @@ function pick3DType(blueprint) {
   if (/particle|dust|cloud|scatter|field|star/i.test(subject))       return 'particles'
   if (/planet|globe|earth|sphere|world|moon/i.test(subject))         return 'planet'
   if (/torus|knot|twist|ribbon|coil/i.test(subject))                 return 'torus'
+  if (/holo|hologram|wireframe|projection/i.test(subject))           return 'hologram'
+  if (/warp|vortex|tunnel|portal|wormhole/i.test(subject))           return 'warp'
+  if (/morph|blob|liquid|fluid|plasma/i.test(subject))               return 'morph'
+  if (/matrix|code|rain|cascade|terminal/i.test(subject))            return 'matrix'
+  if (/icosa|polyhedron|gem|facet|prism/i.test(subject))             return 'icosa'
   // fallback based on industry/style
   const style = (blueprint.creative_concept?.visual_signature ?? blueprint.design_style ?? '').toLowerCase()
   if (/nature|organic|health|medical/i.test(style))  return 'dna'
   if (/crypto|nft|gaming|cyber/i.test(style))        return 'crystal'
   if (/space|galaxy|cosmos/i.test(style))            return 'planet'
   if (/ai|neural|machine/i.test(style))              return 'neural'
+  if (/holo|tech|futurist/i.test(style))             return 'hologram'
+  if (/morph|blob|glass/i.test(style))               return 'morph'
   return 'orbital'
 }
 
@@ -638,6 +653,11 @@ function ThreeDScene({ palette, size: s, objType }) {
   if (objType === 'particles') return <ParticleCloud palette={palette} s={s} />
   if (objType === 'planet')    return <PlanetScene   palette={palette} s={s} />
   if (objType === 'torus')     return <TorusRing     palette={palette} s={s} />
+  if (objType === 'hologram')  return <HologramScene palette={palette} s={s} />
+  if (objType === 'warp')      return <WarpTunnel    palette={palette} s={s} />
+  if (objType === 'morph')     return <MorphBlob     palette={palette} s={s} />
+  if (objType === 'matrix')    return <MatrixRain    palette={palette} s={s} />
+  if (objType === 'icosa')     return <IcosaScene    palette={palette} s={s} />
   return <OrbitalRings palette={palette} s={s} />
 }
 
@@ -972,6 +992,253 @@ function TorusRing({ palette, s }) {
         animation: 'lp-pulse 2s ease-in-out infinite',
         zIndex: 2,
       }} />
+    </div>
+  )
+}
+
+/* ─── 3D Object: Hologram Scene ──────────────────────────────────────────── */
+function HologramScene({ palette, s }) {
+  const faces = [0, 60, 120, 180, 240, 300]
+  return (
+    <div style={{ position: 'relative', width: s, height: s, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Glow */}
+      <div style={{
+        position: 'absolute', inset: '-20%',
+        background: `radial-gradient(circle, ${palette.primary}20, transparent 65%)`,
+        borderRadius: '50%', animation: 'lp-pulse 4s ease-in-out infinite', pointerEvents: 'none',
+      }} />
+      {/* Scan line */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0, height: s * 0.015,
+        background: `linear-gradient(90deg, transparent, ${palette.secondary}cc, transparent)`,
+        animation: 'lp-scan 2.5s linear infinite', pointerEvents: 'none', zIndex: 10,
+      }} />
+      {/* Wireframe cube */}
+      <div style={{ perspective: `${s * 2.5}px`, width: s * 0.65, height: s * 0.65 }}>
+        <div style={{
+          width: '100%', height: '100%',
+          transformStyle: 'preserve-3d',
+          animation: 'lp-wire 8s linear infinite',
+        }}>
+          {faces.map((deg, i) => (
+            <div key={i} style={{
+              position: 'absolute', inset: 0,
+              border: `${Math.max(1, s * 0.006)}px solid ${i % 2 === 0 ? palette.primary : palette.accent}80`,
+              transform: `rotateY(${deg}deg) translateZ(${s * 0.22}px)`,
+              background: `${i % 2 === 0 ? palette.primary : palette.secondary}06`,
+              boxShadow: `0 0 ${s * 0.08}px ${i % 2 === 0 ? palette.primary : palette.accent}50`,
+              animation: 'lp-holo 4s ease-in-out infinite',
+              animationDelay: `${i * 0.4}s`,
+            }} />
+          ))}
+          {/* Top + bottom caps */}
+          {[['rotateX(90deg)', palette.secondary], ['rotateX(-90deg)', palette.accent]].map(([tf, col], i) => (
+            <div key={i} style={{
+              position: 'absolute', inset: 0,
+              border: `${Math.max(1, s * 0.006)}px solid ${col}70`,
+              transform: `${tf} translateZ(${s * 0.22}px)`,
+              background: `${col}04`,
+              boxShadow: `0 0 ${s * 0.06}px ${col}40`,
+            }} />
+          ))}
+        </div>
+      </div>
+      {/* Corner brackets */}
+      {[[-1,-1],[1,-1],[-1,1],[1,1]].map(([x, y], i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          top: y === -1 ? s * 0.12 : 'auto',
+          bottom: y === 1 ? s * 0.12 : 'auto',
+          left: x === -1 ? s * 0.12 : 'auto',
+          right: x === 1 ? s * 0.12 : 'auto',
+          width: s * 0.12, height: s * 0.12,
+          borderTop: y === -1 ? `2px solid ${palette.secondary}` : 'none',
+          borderBottom: y === 1 ? `2px solid ${palette.secondary}` : 'none',
+          borderLeft: x === -1 ? `2px solid ${palette.secondary}` : 'none',
+          borderRight: x === 1 ? `2px solid ${palette.secondary}` : 'none',
+          boxShadow: `0 0 ${s * 0.04}px ${palette.secondary}`,
+        }} />
+      ))}
+    </div>
+  )
+}
+
+/* ─── 3D Object: Warp Tunnel ──────────────────────────────────────────────── */
+function WarpTunnel({ palette, s }) {
+  const rings = Array.from({ length: 8 }, (_, i) => i)
+  return (
+    <div style={{ position: 'relative', width: s, height: s, display: 'flex', alignItems: 'center', justifyContent: 'center', perspective: `${s * 3}px` }}>
+      <div style={{
+        position: 'absolute', inset: '-15%',
+        background: `radial-gradient(circle, ${palette.accent}15, transparent 60%)`,
+        borderRadius: '50%', animation: 'lp-pulse 3s ease-in-out infinite', pointerEvents: 'none',
+      }} />
+      {rings.map(i => {
+        const scale = 0.25 + i * 0.1
+        const opacity = 0.9 - i * 0.1
+        const col = i % 3 === 0 ? palette.primary : i % 3 === 1 ? palette.accent : palette.secondary
+        return (
+          <div key={i} style={{
+            position: 'absolute',
+            width: s * scale, height: s * scale * 0.45,
+            borderRadius: '50%',
+            border: `${Math.max(1, s * 0.008)}px solid ${col}`,
+            opacity,
+            boxShadow: `0 0 ${s * 0.08}px ${col}60, inset 0 0 ${s * 0.04}px ${col}30`,
+            animation: 'lp-vortex 3s linear infinite',
+            animationDuration: `${2 + i * 0.3}s`,
+            animationDirection: i % 2 === 0 ? 'normal' : 'reverse',
+          }} />
+        )
+      })}
+      {/* Center light */}
+      <div style={{
+        width: s * 0.1, height: s * 0.1, borderRadius: '50%', zIndex: 2,
+        background: `radial-gradient(circle, white, ${palette.secondary}, ${palette.primary})`,
+        boxShadow: `0 0 ${s * 0.2}px ${palette.primary}, 0 0 ${s * 0.08}px white`,
+        animation: 'lp-pulse 1.5s ease-in-out infinite',
+      }} />
+    </div>
+  )
+}
+
+/* ─── 3D Object: Morphing Blob ────────────────────────────────────────────── */
+function MorphBlob({ palette, s }) {
+  return (
+    <div style={{ position: 'relative', width: s, height: s, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Outer glow */}
+      <div style={{
+        position: 'absolute', inset: '-10%',
+        background: `radial-gradient(circle, ${palette.primary}20, transparent 65%)`,
+        borderRadius: '50%', animation: 'lp-pulse 5s ease-in-out infinite', pointerEvents: 'none',
+      }} />
+      {/* Main blob */}
+      <div style={{
+        width: s * 0.62, height: s * 0.62,
+        background: `linear-gradient(135deg, ${palette.primary}cc, ${palette.accent}cc, ${palette.secondary}cc)`,
+        animation: 'lp-morph 6s ease-in-out infinite',
+        boxShadow: `0 0 ${s * 0.2}px ${palette.primary}70, 0 0 ${s * 0.08}px ${palette.accent}50`,
+        filter: `blur(${s * 0.008}px)`,
+      }} />
+      {/* Inner highlight */}
+      <div style={{
+        position: 'absolute',
+        width: s * 0.25, height: s * 0.25,
+        background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5), transparent 70%)`,
+        borderRadius: '50%',
+        top: '25%', left: '30%',
+        animation: 'lp-morph 6s ease-in-out infinite reverse',
+      }} />
+      {/* Secondary blob */}
+      <div style={{
+        position: 'absolute',
+        width: s * 0.3, height: s * 0.3,
+        background: `linear-gradient(135deg, ${palette.accent}99, ${palette.secondary}99)`,
+        animation: 'lp-morph 8s ease-in-out infinite reverse',
+        animationDelay: '2s',
+        opacity: 0.6,
+        bottom: '15%', right: '10%',
+      }} />
+    </div>
+  )
+}
+
+/* ─── 3D Object: Matrix Rain ──────────────────────────────────────────────── */
+function MatrixRain({ palette, s }) {
+  const cols = useMemo(() => Array.from({ length: 10 }, (_, i) => ({
+    id: i,
+    x: 5 + i * 9.5,
+    dur: 0.8 + Math.random() * 1.2,
+    del: Math.random() * 3,
+    chars: Array.from({ length: 6 }, () => String.fromCharCode(0x30A0 + Math.floor(Math.random() * 96))),
+  })), [])
+
+  return (
+    <div style={{ position: 'relative', width: s, height: s, overflow: 'hidden', borderRadius: 8 }}>
+      {/* Background */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: `radial-gradient(ellipse at center, ${palette.primary}15, transparent 70%)`,
+      }} />
+      {/* Grid lines */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: `linear-gradient(${palette.primary}12 1px, transparent 1px), linear-gradient(90deg, ${palette.primary}12 1px, transparent 1px)`,
+        backgroundSize: `${s * 0.1}px ${s * 0.1}px`,
+      }} />
+      {/* Falling columns */}
+      {cols.map(col => (
+        <div key={col.id} style={{
+          position: 'absolute',
+          left: `${col.x}%`,
+          top: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: s * 0.05,
+          animation: `lp-rain ${col.dur}s linear ${col.del}s infinite`,
+        }}>
+          {col.chars.map((ch, i) => (
+            <span key={i} style={{
+              fontSize: s * 0.09,
+              color: i === 0 ? '#ffffff' : palette.primary,
+              opacity: 1 - i * 0.15,
+              fontFamily: 'monospace',
+              fontWeight: i === 0 ? 'bold' : 'normal',
+              textShadow: i === 0 ? `0 0 ${s * 0.04}px ${palette.primary}` : 'none',
+            }}>{ch}</span>
+          ))}
+        </div>
+      ))}
+      {/* Center glow */}
+      <div style={{
+        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+        width: s * 0.2, height: s * 0.2, borderRadius: '50%',
+        background: `radial-gradient(circle, ${palette.primary}40, transparent 70%)`,
+        animation: 'lp-pulse 2s ease-in-out infinite',
+        pointerEvents: 'none',
+      }} />
+    </div>
+  )
+}
+
+/* ─── 3D Object: Icosahedron ──────────────────────────────────────────────── */
+function IcosaScene({ palette, s }) {
+  // Simplified icosahedron as SVG polygons
+  const tris = [
+    '50,8 78,32 50,42', '50,8 22,32 50,42',
+    '50,8 78,32 90,60', '50,8 22,32 10,60',
+    '78,32 90,60 65,75', '22,32 10,60 35,75',
+    '90,60 65,75 50,92', '10,60 35,75 50,92',
+    '65,75 35,75 50,92',
+  ]
+  const colors = [palette.primary, palette.secondary, palette.accent]
+  return (
+    <div style={{ position: 'relative', width: s, height: s, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        position: 'absolute', inset: '-20%',
+        background: `radial-gradient(circle, ${palette.primary}18, transparent 60%)`,
+        borderRadius: '50%', animation: 'lp-pulse 4s ease-in-out infinite', pointerEvents: 'none',
+      }} />
+      <div style={{ animation: 'lp-cryst 10s linear infinite', width: '85%', height: '85%' }}>
+        <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', filter: `drop-shadow(0 0 ${s * 0.07}px ${palette.primary})` }}>
+          <defs>
+            <linearGradient id="ig1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={palette.primary} stopOpacity="0.85" />
+              <stop offset="100%" stopColor={palette.accent} stopOpacity="0.6" />
+            </linearGradient>
+            <linearGradient id="ig2" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor={palette.secondary} stopOpacity="0.8" />
+              <stop offset="100%" stopColor={palette.primary} stopOpacity="0.5" />
+            </linearGradient>
+          </defs>
+          {tris.map((pts, i) => (
+            <polygon key={i} points={pts}
+              fill={i % 3 === 0 ? 'url(#ig1)' : i % 3 === 1 ? 'url(#ig2)' : colors[i % 3] + '55'}
+              stroke={palette.accent} strokeWidth="0.4" opacity={0.7 + (i % 3) * 0.1}
+            />
+          ))}
+          <polygon points="50,8 78,32 65,18" fill="white" opacity="0.25" />
+        </svg>
+      </div>
     </div>
   )
 }

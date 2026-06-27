@@ -1,4 +1,14 @@
-import { Link } from 'react-router-dom'
+"use client"
+
+import NextLink from 'next/link'
+
+function Link({ to, href, children, className, ...props }) {
+  return (
+    <NextLink href={to || href} className={className} {...props}>
+      {children}
+    </NextLink>
+  )
+}
 
 export default function Footer() {
   return (

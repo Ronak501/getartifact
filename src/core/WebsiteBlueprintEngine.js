@@ -73,17 +73,87 @@ function inferStyle(industry, prompt) {
   return map[industry] ?? 'Futuristic'
 }
 
-const PALETTES = {
-  Futuristic:    { primary: '#3d5eff', secondary: '#00d4ff', accent: '#bf5fff', background: '#0a0a14', text: '#f0f0ff' },
-  Cyberpunk:     { primary: '#ff2d78', secondary: '#00ff88', accent: '#ffdd00', background: '#050510', text: '#f0f0ff' },
-  Minimal:       { primary: '#1a1a2e', secondary: '#4a4a6a', accent: '#6366f1', background: '#fafafa', text: '#1a1a2e' },
-  Luxury:        { primary: '#c9a84c', secondary: '#e8d5a3', accent: '#8b6914', background: '#0c0a06', text: '#f5f0e8' },
-  Corporate:     { primary: '#2563eb', secondary: '#60a5fa', accent: '#7c3aed', background: '#0f172a', text: '#f8fafc' },
-  Startup:       { primary: '#f97316', secondary: '#fb923c', accent: '#8b5cf6', background: '#09090b', text: '#fafafa' },
-  Gaming:        { primary: '#ff4500', secondary: '#ff8c00', accent: '#ffdd00', background: '#0a0500', text: '#fff8f0' },
-  Space:         { primary: '#6c63ff', secondary: '#a78bfa', accent: '#38bdf8', background: '#020212', text: '#f0f0ff' },
-  AI:            { primary: '#00d4ff', secondary: '#3d5eff', accent: '#bf5fff', background: '#040810', text: '#e8f4ff' },
-  Glassmorphism: { primary: '#818cf8', secondary: '#a5b4fc', accent: '#f472b6', background: '#0f0a1e', text: '#f0f0ff' },
+// ─── Multiple palette variants per style (randomly picked each generation) ────
+const PALETTE_VARIANTS = {
+  Futuristic: [
+    { primary: '#3d5eff', secondary: '#00d4ff', accent: '#bf5fff', background: '#0a0a14', text: '#f0f0ff' },
+    { primary: '#5b21b6', secondary: '#7c3aed', accent: '#06b6d4', background: '#0d0118', text: '#f5f3ff' },
+    { primary: '#0ea5e9', secondary: '#38bdf8', accent: '#e879f9', background: '#071428', text: '#e0f2fe' },
+    { primary: '#6366f1', secondary: '#818cf8', accent: '#34d399', background: '#06060f', text: '#eef2ff' },
+  ],
+  Cyberpunk: [
+    { primary: '#ff2d78', secondary: '#00ff88', accent: '#ffdd00', background: '#050510', text: '#f0f0ff' },
+    { primary: '#00ffff', secondary: '#ff00ff', accent: '#ffff00', background: '#040408', text: '#f0ffff' },
+    { primary: '#ff6b00', secondary: '#ff2d78', accent: '#39ff14', background: '#060203', text: '#fff8f0' },
+    { primary: '#9400ff', secondary: '#00ffe5', accent: '#ff0099', background: '#05000a', text: '#f8f0ff' },
+  ],
+  Minimal: [
+    { primary: '#1a1a2e', secondary: '#4a4a6a', accent: '#6366f1', background: '#fafafa', text: '#1a1a2e' },
+    { primary: '#18181b', secondary: '#52525b', accent: '#e11d48', background: '#ffffff', text: '#09090b' },
+    { primary: '#1e293b', secondary: '#475569', accent: '#0284c7', background: '#f8fafc', text: '#0f172a' },
+    { primary: '#292524', secondary: '#78716c', accent: '#16a34a', background: '#fafaf9', text: '#1c1917' },
+  ],
+  Luxury: [
+    { primary: '#c9a84c', secondary: '#e8d5a3', accent: '#8b6914', background: '#0c0a06', text: '#f5f0e8' },
+    { primary: '#e2c45a', secondary: '#d4a853', accent: '#a08010', background: '#080604', text: '#fdf6e3' },
+    { primary: '#b8a060', secondary: '#d4b896', accent: '#7a5c20', background: '#10090c', text: '#f0ece4' },
+    { primary: '#c4a882', secondary: '#e8d8c0', accent: '#8c6840', background: '#0a0804', text: '#faf5ec' },
+  ],
+  Corporate: [
+    { primary: '#2563eb', secondary: '#60a5fa', accent: '#7c3aed', background: '#0f172a', text: '#f8fafc' },
+    { primary: '#1d4ed8', secondary: '#3b82f6', accent: '#06b6d4', background: '#0a1020', text: '#f0f6ff' },
+    { primary: '#0369a1', secondary: '#38bdf8', accent: '#7c3aed', background: '#0c1624', text: '#e0f2fe' },
+    { primary: '#4338ca', secondary: '#818cf8', accent: '#06b6d4', background: '#0e0f1e', text: '#eef2ff' },
+  ],
+  Startup: [
+    { primary: '#f97316', secondary: '#fb923c', accent: '#8b5cf6', background: '#09090b', text: '#fafafa' },
+    { primary: '#ec4899', secondary: '#f472b6', accent: '#8b5cf6', background: '#0a0010', text: '#fdf4ff' },
+    { primary: '#10b981', secondary: '#34d399', accent: '#f59e0b', background: '#041a10', text: '#ecfdf5' },
+    { primary: '#f43f5e', secondary: '#fb7185', accent: '#8b5cf6', background: '#100008', text: '#fff1f2' },
+  ],
+  Gaming: [
+    { primary: '#ff4500', secondary: '#ff8c00', accent: '#ffdd00', background: '#0a0500', text: '#fff8f0' },
+    { primary: '#ff2d78', secondary: '#ff6b00', accent: '#00ff88', background: '#050208', text: '#fff0f5' },
+    { primary: '#39ff14', secondary: '#00ff88', accent: '#ff2d78', background: '#020805', text: '#f0fff4' },
+    { primary: '#ff0080', secondary: '#00ffff', accent: '#ffff00', background: '#030308', text: '#f5f0ff' },
+  ],
+  Space: [
+    { primary: '#6c63ff', secondary: '#a78bfa', accent: '#38bdf8', background: '#020212', text: '#f0f0ff' },
+    { primary: '#4c1d95', secondary: '#7c3aed', accent: '#38bdf8', background: '#040010', text: '#f5f3ff' },
+    { primary: '#1e3a8a', secondary: '#3b82f6', accent: '#a78bfa', background: '#02060f', text: '#dbeafe' },
+    { primary: '#0c4a6e', secondary: '#0ea5e9', accent: '#e879f9', background: '#021018', text: '#e0f2fe' },
+  ],
+  AI: [
+    { primary: '#00d4ff', secondary: '#3d5eff', accent: '#bf5fff', background: '#040810', text: '#e8f4ff' },
+    { primary: '#06b6d4', secondary: '#0ea5e9', accent: '#a855f7', background: '#050a14', text: '#e0f2fe' },
+    { primary: '#22d3ee', secondary: '#67e8f9', accent: '#818cf8', background: '#021018', text: '#cffafe' },
+    { primary: '#818cf8', secondary: '#6366f1', accent: '#00d4ff', background: '#06060f', text: '#eef2ff' },
+  ],
+  Glassmorphism: [
+    { primary: '#818cf8', secondary: '#a5b4fc', accent: '#f472b6', background: '#0f0a1e', text: '#f0f0ff' },
+    { primary: '#a855f7', secondary: '#c084fc', accent: '#38bdf8', background: '#0a0520', text: '#faf5ff' },
+    { primary: '#6366f1', secondary: '#818cf8', accent: '#ec4899', background: '#08051a', text: '#eef2ff' },
+    { primary: '#8b5cf6', secondary: '#a78bfa', accent: '#34d399', background: '#080315', text: '#f5f3ff' },
+  ],
+}
+
+// Backwards-compat single palette accessor
+const PALETTES = Object.fromEntries(
+  Object.entries(PALETTE_VARIANTS).map(([k, v]) => [k, v[0]])
+)
+
+// ─── Typography pairs per style ──────────────────────────────────────────────
+const FONT_PAIRS = {
+  Futuristic:    [['Syne', 'Inter'], ['Orbitron', 'Exo 2'], ['Space Grotesk', 'DM Sans'], ['Rajdhani', 'Inter']],
+  Cyberpunk:     [['Orbitron', 'Rajdhani'], ['Share Tech Mono', 'Exo 2'], ['Russo One', 'Rajdhani'], ['Bebas Neue', 'IBM Plex Mono']],
+  Minimal:       [['Inter', 'Inter'], ['DM Sans', 'DM Sans'], ['Plus Jakarta Sans', 'Inter'], ['Outfit', 'Inter']],
+  Luxury:        [['Cormorant Garamond', 'Montserrat'], ['Playfair Display', 'Lato'], ['Libre Baskerville', 'Inter'], ['EB Garamond', 'Montserrat']],
+  Corporate:     [['Syne', 'Inter'], ['IBM Plex Sans', 'Inter'], ['Plus Jakarta Sans', 'DM Sans'], ['DM Sans', 'Inter']],
+  Startup:       [['Clash Display', 'Inter'], ['Space Grotesk', 'DM Sans'], ['Plus Jakarta Sans', 'Inter'], ['Syne', 'Inter']],
+  Gaming:        [['Orbitron', 'Rajdhani'], ['Russo One', 'Exo 2'], ['Audiowide', 'Rajdhani'], ['Bebas Neue', 'Exo 2']],
+  Space:         [['Syne', 'Inter'], ['Orbitron', 'Exo 2'], ['Space Grotesk', 'Inter'], ['Rajdhani', 'DM Sans']],
+  AI:            [['Syne', 'JetBrains Mono'], ['Space Grotesk', 'Inter'], ['IBM Plex Sans', 'IBM Plex Mono'], ['Outfit', 'DM Mono']],
+  Glassmorphism: [['Syne', 'Inter'], ['Plus Jakarta Sans', 'DM Sans'], ['Outfit', 'Inter'], ['Space Grotesk', 'Inter']],
 }
 
 // ─── Per-industry content generators ─────────────────────────────────────────
@@ -620,15 +690,33 @@ const LAYOUT_BY_INDUSTRY = {
   travel:     ['magazine', 'centered'],
 }
 
+// ─── Prompt-based seed for consistent-but-varied results ─────────────────────
+function promptSeed(prompt) {
+  let h = 0
+  for (let i = 0; i < prompt.length; i++) h = (Math.imul(31, h) + prompt.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function seededPick(arr, seed, offset = 0) {
+  return arr[(seed + offset) % arr.length]
+}
+
 // ─── Main dynamic local builder ───────────────────────────────────────────────
 
 function buildLocalBlueprint(prompt) {
-  const industry   = classify(prompt)
-  const style      = inferStyle(industry, prompt)
-  const palette    = PALETTES[style] ?? PALETTES.Futuristic
+  const seed     = promptSeed(prompt)
+  const industry = classify(prompt)
+  const style    = inferStyle(industry, prompt)
+
+  // Pick palette variant and font pair based on prompt seed (deterministic per prompt)
+  const palettePool = PALETTE_VARIANTS[style] ?? PALETTE_VARIANTS.Futuristic
+  const fontPool    = FONT_PAIRS[style]        ?? FONT_PAIRS.Futuristic
+  const palette     = seededPick(palettePool, seed, 0)
+  const [headingFont, bodyFont] = seededPick(fontPool, seed, 1)
+
   const name       = extractName(prompt)
-  const threeObj   = pickRand(THREE_OBJECT_POOLS[industry] ?? ['neural-network', 'particles', 'torus-knot'])
-  const heroLayout = pickRand(LAYOUT_BY_INDUSTRY[industry] ?? HERO_LAYOUTS)
+  const threeObj   = seededPick(THREE_OBJECT_POOLS[industry] ?? ['neural-network', 'particles', 'torus-knot'], seed, 2)
+  const heroLayout = seededPick(LAYOUT_BY_INDUSTRY[industry] ?? HERO_LAYOUTS, seed, 3)
 
   const gen = CONTENT[industry] ?? CONTENT.saas
   const c   = gen(name, prompt)
@@ -638,7 +726,7 @@ function buildLocalBlueprint(prompt) {
     business_type: c.businessType,
     design_style:  style,
     color_palette: palette,
-    typography: { heading_font: 'Syne', body_font: 'Inter' },
+    typography: { heading_font: headingFont, body_font: bodyFont },
     navbar: { logo: name, links: c.navLinks },
     hero: {
       ...c.hero,

@@ -1,5 +1,7 @@
+"use client"
+
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '@lib/router-shim'
 import { motion, AnimatePresence } from 'framer-motion'
 import useBlueprintStore, { OUTPUT_TABS, PHASES } from '@store/blueprintStore'
 import useAuthStore from '@store/authStore'
@@ -9,6 +11,7 @@ import BlueprintViewer from '@components/builder/BlueprintViewer'
 import VideoScript     from '@components/builder/VideoScript'
 import VeoPanel        from '@components/builder/VeoPanel'
 import CodeOutput      from '@components/builder/CodeOutput'
+import VideoReviewGate from '@components/builder/VideoReviewGate'
 import GlassCard       from '@components/ui/GlassCard'
 import Badge           from '@components/ui/Badge'
 
@@ -188,6 +191,11 @@ export default function Builder() {
                     </AnimatePresence>
                   </div>
                 </>
+              ) : (useBlueprintStore.getState().storyboard || [PHASES.STORYBOARD, PHASES.VIDEO_RENDERING, PHASES.USER_REVIEW].includes(phase)) ? (
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm overflow-hidden p-4 animate-fade-in"
+                  style={{ height: 'calc(100vh - 16rem)' }}>
+                  <VideoReviewGate />
+                </div>
               ) : (
                 <EmptyOutput phase={phase} />
               )}
@@ -202,15 +210,14 @@ export default function Builder() {
 
 /* ─── Empty / loading state ───────────────────────────────────────────────── */
 function EmptyOutput({ phase }) {
-  const isGen = [PHASES.ANALYZING, PHASES.GENERATING, PHASES.WEBSITE, PHASES.VEO, PHASES.BUILDING].includes(phase)
+  const isGen = [PHASES.STORYBOARD, PHASES.VIDEO_RENDERING, PHASES.VISION_ANALYSIS, PHASES.CODE_GENERATION].includes(phase)
 
   const cfg = {
-    [PHASES.ANALYZING]:  { icon: '🧠', label: 'Analyzing intent...' },
-    [PHASES.GENERATING]: { icon: '📋', label: 'Generating architecture blueprint...' },
-    [PHASES.WEBSITE]:    { icon: '🖥️', label: 'Building render-ready website preview...' },
-    [PHASES.VEO]:        { icon: '🎬', label: 'Crafting cinematic Veo 2 prompt...' },
-    [PHASES.BUILDING]:   { icon: '⚡', label: 'Generating React + Three.js code...' },
-    [PHASES.ERROR]:      { icon: '❌', label: 'Something went wrong' },
+    [PHASES.STORYBOARD]:      { icon: '🧠', label: 'Generating creative storyboard & visual specification...' },
+    [PHASES.VIDEO_RENDERING]: { icon: '🎬', label: 'Rendering cinematic 3D preview video via Google Veo 2...' },
+    [PHASES.VISION_ANALYSIS]: { icon: '👁️', label: 'Vision AI pipeline extracting blueprint elements...' },
+    [PHASES.CODE_GENERATION]: { icon: '⚡', label: 'Assembling custom Next.js & React Three Fiber components...' },
+    [PHASES.ERROR]:           { icon: '❌', label: 'Something went wrong' },
   }[phase] ?? { icon: '🚀', label: 'Enter a prompt to begin' }
 
   return (

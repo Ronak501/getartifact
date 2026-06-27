@@ -1,142 +1,188 @@
+"use client"
+
 import { useState, useEffect, useRef } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import NextLink from 'next/link'
+import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import useAuthStore from '@store/authStore'
 
+// Next.js Navigation Compatibility Helpers
+function Link({ to, href, children, className, ...props }) {
+  return (
+    <NextLink href={to || href} className={className} {...props}>
+      {children}
+    </NextLink>
+  )
+}
+
+function NavLink({ to, children, className, end, onClick }) {
+  const pathname = usePathname()
+  const isActive = end ? pathname === to : pathname.startsWith(to)
+  const resolvedClass = typeof className === 'function' ? className({ isActive }) : className
+  return (
+    <NextLink href={to} className={resolvedClass} onClick={onClick}>
+      {children}
+    </NextLink>
+  )
+}
+
+const useNavigate = () => {
+  const router = useRouter()
+  return (to) => router.push(to)
+}
+
 const NAV_LINKS = [
-  { to: '/',          label: 'Home' },
-  { to: '/builder',   label: 'Builder' },
   { to: '/templates', label: 'Templates' },
   { to: '/pricing',   label: 'Pricing' },
+  { to: '/docs',      label: 'Docs' },
 ]
 
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { user, profile, signOut } = useAuthStore()
 
-  useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', handler, { passive: true })
-    return () => window.removeEventListener('scroll', handler)
-  }, [])
-
   return (
-    <header className={`
-      fixed top-0 inset-x-0 z-50 transition-all duration-300
-      ${scrolled
-        ? 'bg-[#0a0a14]/85 backdrop-blur-xl border-b border-white/[0.07] shadow-[0_4px_24px_rgba(0,0,0,0.4)]'
-        : 'bg-transparent'}
-    `}>
-      <nav className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+    <div className="fixed top-0 inset-x-0 z-50 flex justify-center px-4 pt-3 pointer-events-none">
 
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 group flex-shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-brand-500/20 border border-brand-500/40 flex items-center justify-center group-hover:border-brand-400/60 transition-colors">
-            <HexIcon />
-          </div>
-          <span className="font-display font-bold text-white text-sm tracking-wide">
-            Tech<span className="text-brand-400">Sodh</span>
-          </span>
-        </Link>
+      {/* ── Floating pill container ─────────────────────────────────────── */}
+      <motion.header
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="pointer-events-auto w-full max-w-4xl"
+      >
+        <nav className="
+          flex items-center justify-between gap-2 px-3 h-12
+          rounded-2xl
+          bg-[#0d0d1c]/80 backdrop-blur-2xl
+          border border-white/[0.09]
+          shadow-[0_4px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.03)]
+        ">
 
-        {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-1 flex-1 justify-center">
-          {NAV_LINKS.map(link => (
-            <NavLink
-              key={link.to} to={link.to} end={link.to === '/'}
-              className={({ isActive }) => `
-                px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
-                ${isActive ? 'text-white bg-white/[0.08]' : 'text-white/50 hover:text-white hover:bg-white/[0.05]'}
-              `}
-            >
-              {link.label}
-            </NavLink>
-          ))}
-        </div>
-
-        {/* Right side */}
-        <div className="hidden md:flex items-center gap-3 flex-shrink-0">
-          {user ? (
-            <UserMenu user={user} profile={profile} onSignOut={signOut} />
-          ) : (
-            <>
-              <Link to="/login"
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white/60 hover:text-white
-                  hover:bg-white/[0.06] transition-all duration-200">
-                Sign In
-              </Link>
-              <Link to="/signup"
-                className="px-5 py-2 rounded-xl text-sm font-semibold text-white
-                  bg-brand-500 hover:bg-brand-600
-                  shadow-[0_0_20px_rgba(61,94,255,0.35)] hover:shadow-[0_0_30px_rgba(61,94,255,0.55)]
-                  transition-all duration-200">
-                Get Started
-              </Link>
-            </>
-          )}
-        </div>
-
-        {/* Mobile toggle */}
-        <button
-          className="md:hidden p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/[0.06]"
-          onClick={() => setMobileOpen(o => !o)}
-          aria-label="Toggle menu"
-        >
-          {mobileOpen ? <XIcon /> : <MenuIcon />}
-        </button>
-      </nav>
-
-      {/* Mobile menu */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-white/[0.08] bg-[#0a0a14]/95 backdrop-blur-xl overflow-hidden"
-          >
-            <div className="px-6 py-4 flex flex-col gap-1">
-              {NAV_LINKS.map(link => (
-                <NavLink key={link.to} to={link.to} end={link.to === '/'}
-                  onClick={() => setMobileOpen(false)}
-                  className={({ isActive }) => `
-                    px-4 py-3 rounded-xl text-sm font-medium
-                    ${isActive ? 'text-white bg-white/[0.08]' : 'text-white/50 hover:text-white'}
-                  `}
-                >
-                  {link.label}
-                </NavLink>
-              ))}
-
-              {user ? (
-                <>
-                  <Link to="/dashboard" onClick={() => setMobileOpen(false)}
-                    className="px-4 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white">
-                    Dashboard
-                  </Link>
-                  <button onClick={() => { signOut(); setMobileOpen(false) }}
-                    className="text-left px-4 py-3 rounded-xl text-sm font-medium text-red-400/80 hover:text-red-400">
-                    Sign Out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link to="/login" onClick={() => setMobileOpen(false)}
-                    className="px-4 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white">
-                    Sign In
-                  </Link>
-                  <Link to="/signup" onClick={() => setMobileOpen(false)}
-                    className="mt-1 px-4 py-3 rounded-xl text-sm font-semibold text-white text-center bg-brand-500">
-                    Get Started
-                  </Link>
-                </>
-              )}
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2 group flex-shrink-0 pl-1">
+            <div className="w-7 h-7 rounded-lg bg-brand-500/20 border border-brand-500/35
+              flex items-center justify-center group-hover:border-brand-400/55
+              group-hover:bg-brand-500/30 transition-all duration-200">
+              <HexIcon />
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </header>
+            <span className="font-display font-bold text-white text-[13px] tracking-wide">
+              Get<span className="text-brand-400">Artifact</span>
+            </span>
+          </Link>
+
+          {/* Divider */}
+          <div className="hidden md:block w-px h-4 bg-white/[0.10] mx-1" />
+
+          {/* Desktop nav links */}
+          <div className="hidden md:flex items-center gap-0.5 flex-1">
+            {NAV_LINKS.map(link => (
+              <NavLink
+                key={link.to} to={link.to} end={link.to === '/'}
+                className={({ isActive }) => `
+                  px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-150
+                  ${isActive
+                    ? 'text-white bg-white/[0.09]'
+                    : 'text-white/45 hover:text-white hover:bg-white/[0.06]'}
+                `}
+              >
+                {link.label}
+              </NavLink>
+            ))}
+          </div>
+
+          {/* Right side */}
+          <div className="hidden md:flex items-center gap-1.5 flex-shrink-0 pr-1">
+            {user ? (
+              <UserMenu user={user} profile={profile} onSignOut={signOut} />
+            ) : (
+              <>
+                <Link to="/login"
+                  className="px-3 py-1.5 rounded-lg text-[13px] font-medium text-white/50
+                    hover:text-white hover:bg-white/[0.06] transition-all duration-150">
+                  Sign In
+                </Link>
+                <Link to="/signup"
+                  className="px-4 py-1.5 rounded-xl text-[13px] font-semibold text-white
+                    bg-brand-500 hover:bg-brand-600
+                    shadow-[0_0_14px_rgba(61,94,255,0.4)]
+                    hover:shadow-[0_0_22px_rgba(61,94,255,0.6)]
+                    transition-all duration-200">
+                  Get Started
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Mobile toggle */}
+          <button
+            className="md:hidden p-1.5 rounded-lg text-white/50 hover:text-white
+              hover:bg-white/[0.07] transition-colors mr-1"
+            onClick={() => setMobileOpen(o => !o)}
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <XIcon /> : <MenuIcon />}
+          </button>
+        </nav>
+
+        {/* Mobile dropdown — attached below the pill */}
+        <AnimatePresence>
+          {mobileOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-2 rounded-2xl border border-white/[0.09]
+                bg-[#0d0d1c]/95 backdrop-blur-2xl overflow-hidden
+                shadow-[0_8px_40px_rgba(0,0,0,0.5)]"
+            >
+              <div className="p-2 flex flex-col gap-0.5">
+                {NAV_LINKS.map(link => (
+                  <NavLink key={link.to} to={link.to} end={link.to === '/'}
+                    onClick={() => setMobileOpen(false)}
+                    className={({ isActive }) => `
+                      px-4 py-2.5 rounded-xl text-sm font-medium
+                      ${isActive ? 'text-white bg-white/[0.08]' : 'text-white/50 hover:text-white hover:bg-white/[0.05]'}
+                    `}
+                  >
+                    {link.label}
+                  </NavLink>
+                ))}
+
+                <div className="my-1 h-px bg-white/[0.07] mx-2" />
+
+                {user ? (
+                  <>
+                    <Link to="/dashboard" onClick={() => setMobileOpen(false)}
+                      className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/[0.05]">
+                      Dashboard
+                    </Link>
+                    <button onClick={() => { signOut(); setMobileOpen(false) }}
+                      className="text-left px-4 py-2.5 rounded-xl text-sm font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/[0.08]">
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex gap-2 p-1">
+                    <Link to="/login" onClick={() => setMobileOpen(false)}
+                      className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white/50
+                        hover:text-white border border-white/[0.09] hover:bg-white/[0.05] text-center transition-all">
+                      Sign In
+                    </Link>
+                    <Link to="/signup" onClick={() => setMobileOpen(false)}
+                      className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white
+                        bg-brand-500 hover:bg-brand-600 text-center transition-all">
+                      Get Started
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.header>
+    </div>
   )
 }
 

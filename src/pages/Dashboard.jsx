@@ -1,5 +1,7 @@
+"use client"
+
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from '@lib/router-shim'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@lib/supabase'
 import useAuthStore from '@store/authStore'

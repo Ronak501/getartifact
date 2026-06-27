@@ -1,15 +1,201 @@
 /**
  * Templates — Pre-built website template gallery.
  * Click "Use Template" to load it directly into the builder with no AI wait.
+ *
+ * CSS-only previews (no WebGL canvas) to avoid browser context limits.
  */
 
-import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+"use client"
+
+import { useState } from 'react'
+import { useNavigate } from '@lib/router-shim'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PREBUILT_TEMPLATES, TEMPLATE_INDUSTRIES } from '@data/prebuiltTemplates'
-import useBlueprintStore, { PHASES, OUTPUT_TABS } from '@store/blueprintStore'
+import useBlueprintStore from '@store/blueprintStore'
 import GlassCard from '@components/ui/GlassCard'
-import Badge from '@components/ui/Badge'
+
+/* ─── CSS-only template preview (no WebGL) ────────────────────────────────── */
+function TemplateCSSPreview({ tpl, hovered }) {
+  const [c1, c2, c3] = tpl.preview_colors
+  const bg = tpl.websiteBlueprint?.color_palette?.background ?? '#0a0a14'
+  const sections = tpl.websiteBlueprint?.sections?.slice(0, 3) ?? []
+
+  return (
+    <div style={{
+      position: 'relative',
+      width: '100%',
+      height: '100%',
+      background: bg,
+      overflow: 'hidden',
+    }}>
+      {/* Animated gradient background */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: `radial-gradient(ellipse at 30% 40%, ${c1}35 0%, transparent 60%),
+                     radial-gradient(ellipse at 75% 70%, ${c2}28 0%, transparent 55%),
+                     radial-gradient(ellipse at 50% 100%, ${c3 || c1}20 0%, transparent 50%)`,
+      }} />
+
+      {/* Floating blobs */}
+      <div style={{
+        position: 'absolute', top: '-20%', right: '-10%',
+        width: '55%', height: '70%', borderRadius: '50%',
+        background: c1 + '22', filter: 'blur(32px)',
+        animation: 'float1 6s ease-in-out infinite',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '-15%', left: '5%',
+        width: '40%', height: '55%', borderRadius: '50%',
+        background: c2 + '1a', filter: 'blur(24px)',
+        animation: 'float2 8s ease-in-out infinite',
+      }} />
+
+      {/* Simulated website UI */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        padding: '14px 14px 12px',
+        gap: 8,
+      }}>
+        {/* Fake navbar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '5px 8px',
+          background: 'rgba(255,255,255,0.06)',
+          borderRadius: 6,
+          border: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(8px)',
+        }}>
+          <div style={{
+            width: 40, height: 6, borderRadius: 3,
+            background: `linear-gradient(90deg, ${c1}, ${c2})`,
+          }} />
+          <div style={{ display: 'flex', gap: 5 }}>
+            {[28, 22, 20].map((w, i) => (
+              <div key={i} style={{
+                width: w, height: 4, borderRadius: 2,
+                background: 'rgba(255,255,255,0.20)',
+              }} />
+            ))}
+          </div>
+          <div style={{
+            width: 36, height: 16, borderRadius: 4,
+            background: `linear-gradient(135deg, ${c1}, ${c3 || c2})`,
+            boxShadow: `0 0 8px ${c1}60`,
+          }} />
+        </div>
+
+        {/* Hero area */}
+        <div style={{
+          flex: 1,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 6,
+          padding: '8px 12px',
+          position: 'relative',
+        }}>
+          {/* Glow orb */}
+          <div style={{
+            position: 'absolute',
+            width: 80, height: 80, borderRadius: '50%',
+            background: `radial-gradient(circle, ${c1}30, transparent 70%)`,
+            filter: 'blur(16px)',
+          }} />
+          <div style={{
+            width: '70%', height: 7, borderRadius: 4,
+            background: `linear-gradient(90deg, ${c1}, ${c2})`,
+            boxShadow: `0 0 12px ${c1}50`,
+          }} />
+          <div style={{
+            width: '55%', height: 5, borderRadius: 3,
+            background: 'rgba(255,255,255,0.18)',
+          }} />
+          <div style={{
+            width: '45%', height: 4, borderRadius: 3,
+            background: 'rgba(255,255,255,0.10)',
+          }} />
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <div style={{
+              width: 46, height: 14, borderRadius: 5,
+              background: `linear-gradient(135deg, ${c1}, ${c2})`,
+              boxShadow: `0 0 10px ${c1}55`,
+            }} />
+            <div style={{
+              width: 38, height: 14, borderRadius: 5,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.15)',
+            }} />
+          </div>
+        </div>
+
+        {/* Section strips */}
+        {sections.length > 0 && (
+          <div style={{ display: 'flex', gap: 5 }}>
+            {sections.map((s, i) => (
+              <div key={i} style={{
+                flex: 1, height: 20, borderRadius: 5,
+                background: i === 0
+                  ? `linear-gradient(135deg, ${c1}25, ${c2}20)`
+                  : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${i === 0 ? c1 + '35' : 'rgba(255,255,255,0.07)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{
+                  width: '55%', height: 3, borderRadius: 2,
+                  background: i === 0 ? c1 + '90' : 'rgba(255,255,255,0.15)',
+                }} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Hover prompt overlay */}
+      <AnimatePresence>
+        {hovered && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{
+              position: 'absolute', inset: 0, zIndex: 20,
+              background: 'rgba(0,0,0,0.65)',
+              backdropFilter: 'blur(6px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '16px 20px',
+            }}
+          >
+            <p style={{
+              fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)',
+              textAlign: 'center', lineHeight: 1.55, fontStyle: 'italic',
+            }}>
+              "{tpl.prompt}"
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/* ─── Keyframe injection (once per page load) ─────────────────────────────── */
+const KEYFRAMES = `
+  @keyframes float1 {
+    0%,100% { transform: translate(0,0) scale(1); }
+    50%      { transform: translate(-6px,10px) scale(1.06); }
+  }
+  @keyframes float2 {
+    0%,100% { transform: translate(0,0) scale(1); }
+    50%      { transform: translate(8px,-8px) scale(0.94); }
+  }
+`
+if (typeof document !== 'undefined' && !document.getElementById('tpl-kf')) {
+  const s = document.createElement('style')
+  s.id = 'tpl-kf'
+  s.textContent = KEYFRAMES
+  document.head.appendChild(s)
+}
 
 export default function Templates() {
   const [activeIndustry, setActiveIndustry] = useState('all')
@@ -21,7 +207,7 @@ export default function Templates() {
     : PREBUILT_TEMPLATES.filter(t => t.industry === activeIndustry)
 
   return (
-    <main className="min-h-screen bg-[#0a0a14] pt-24 pb-20 px-6">
+    <main className="min-h-screen bg-[#0a0a14] pt-20 pb-20 px-6">
       <div className="max-w-7xl mx-auto">
 
         {/* ── Header ───────────────────────────────────────────────────────── */}
@@ -83,7 +269,7 @@ export default function Templates() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.35 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {filtered.map((tpl, i) => (
               <TemplateCard
@@ -143,7 +329,6 @@ function TemplateCard({ template: tpl, index, hovered, onHover, navigate }) {
   const { finishGeneration, setPrompt } = useBlueprintStore()
 
   const useTemplate = () => {
-    // Build a minimal blueprint object that satisfies the store
     const blueprint = {
       concept: {
         websiteName:  tpl.name,
@@ -182,132 +367,156 @@ function TemplateCard({ template: tpl, index, hovered, onHover, navigate }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 28 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.5 }}
+      transition={{ delay: index * 0.06, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       onMouseEnter={() => onHover(tpl.id)}
       onMouseLeave={() => onHover(null)}
-      className="group"
+      style={{ cursor: 'pointer' }}
     >
-      <div className={`
-        relative rounded-2xl overflow-hidden border transition-all duration-300
-        ${hovered
-          ? 'border-white/20 shadow-[0_8px_40px_rgba(0,0,0,0.6)] -translate-y-1'
-          : 'border-white/[0.08]'}
-        bg-white/[0.03] backdrop-blur-sm
-      `}>
+      <div style={{
+        borderRadius: 16,
+        overflow: 'hidden',
+        border: hovered ? `1px solid rgba(255,255,255,0.18)` : '1px solid rgba(255,255,255,0.07)',
+        background: '#0d0d1a',
+        boxShadow: hovered
+          ? `0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px ${c1}25, 0 0 40px ${c1}15`
+          : '0 4px 24px rgba(0,0,0,0.35)',
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        transition: 'all 0.28s cubic-bezier(0.22,1,0.36,1)',
+      }}>
 
-        {/* Color preview swatch */}
-        <div className="relative h-36 overflow-hidden">
-          {/* Gradient background from template palette */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(135deg, ${c1}22 0%, ${tpl.websiteBlueprint.color_palette.background} 60%)`,
-            }}
-          />
-          {/* Blob decorations */}
-          <div className="absolute inset-0 overflow-hidden">
-            <div
-              className="absolute -top-6 -right-6 w-28 h-28 rounded-full opacity-60 blur-2xl"
-              style={{ background: c1 }}
-            />
-            <div
-              className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full opacity-40 blur-2xl"
-              style={{ background: c2 }}
-            />
-            <div
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full opacity-20 blur-xl"
-              style={{ background: c3 }}
-            />
-          </div>
-
-          {/* Center icon + color dots */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <span className="text-4xl drop-shadow-lg">{tpl.icon}</span>
-            <div className="flex gap-2">
-              {tpl.preview_colors.map((col, i) => (
-                <div
-                  key={i}
-                  className="w-4 h-4 rounded-full ring-1 ring-white/20"
-                  style={{ background: col }}
-                />
-              ))}
-            </div>
-          </div>
+        {/* CSS-only preview — 220px tall, no WebGL */}
+        <div style={{ position: 'relative', height: 220, overflow: 'hidden' }}>
+          <TemplateCSSPreview tpl={tpl} hovered={hovered} />
 
           {/* Design style badge */}
-          <div className="absolute top-3 left-3">
-            <span className="px-2.5 py-1 rounded-lg text-2xs font-semibold"
-              style={{
-                background: c1 + '25',
-                border: `1px solid ${c1}40`,
-                color: c1,
-              }}>
+          <div style={{
+            position: 'absolute', top: 12, left: 12, zIndex: 10,
+          }}>
+            <span style={{
+              display: 'inline-block',
+              padding: '3px 10px',
+              borderRadius: 6,
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              background: c1 + '22',
+              border: `1px solid ${c1}40`,
+              color: c1,
+            }}>
               {tpl.design_style}
             </span>
           </div>
 
-          {/* Hover overlay with preview prompt */}
-          <AnimatePresence>
-            {hovered && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center"
-              >
-                <p className="text-xs text-white/70 text-center px-4 leading-relaxed italic">
-                  "{tpl.prompt}"
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Color palette dots */}
+          <div style={{
+            position: 'absolute', bottom: 12, right: 12, zIndex: 10,
+            display: 'flex', gap: 5,
+          }}>
+            {tpl.preview_colors.map((col, i) => (
+              <div key={i} style={{
+                width: 10, height: 10, borderRadius: '50%',
+                background: col,
+                boxShadow: `0 0 6px ${col}80`,
+                border: '1px solid rgba(255,255,255,0.25)',
+              }} />
+            ))}
+          </div>
+
+          {/* Bottom gradient fade into card body */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 40,
+            background: 'linear-gradient(to bottom, transparent, #0d0d1a)',
+            pointerEvents: 'none',
+          }} />
         </div>
 
         {/* Card body */}
-        <div className="p-4">
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <h3 className="font-display font-bold text-white text-base leading-tight">
+        <div style={{ padding: '16px 18px 18px' }}>
+          {/* Name + industry badge row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+            <h3 style={{
+              margin: 0, fontSize: '1rem', fontWeight: 700,
+              color: '#fff', lineHeight: 1.3,
+              fontFamily: 'inherit',
+            }}>
               {tpl.name}
             </h3>
             <IndustryBadge industry={tpl.industry} />
           </div>
-          <p className="text-2xs text-white/38 leading-relaxed mb-4">
+
+          {/* Description */}
+          <p style={{
+            margin: '0 0 12px',
+            fontSize: '0.72rem', color: 'rgba(255,255,255,0.38)',
+            lineHeight: 1.6,
+          }}>
             {tpl.description}
           </p>
 
-          {/* Section count pills */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
+          {/* Section type pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 14 }}>
             {tpl.websiteBlueprint.sections.slice(0, 4).map(s => (
-              <span key={s.id}
-                className="px-2 py-0.5 rounded-md text-2xs font-medium
-                  bg-white/[0.05] border border-white/[0.08] text-white/40 capitalize">
+              <span key={s.id} style={{
+                padding: '2px 8px',
+                borderRadius: 5,
+                fontSize: '0.62rem', fontWeight: 500,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.09)',
+                color: 'rgba(255,255,255,0.38)',
+                textTransform: 'capitalize',
+              }}>
                 {s.type}
               </span>
             ))}
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-2">
+          <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={useTemplate}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white
-                transition-all duration-200"
               style={{
-                background: `linear-gradient(135deg, ${c1}, ${c2})`,
-                boxShadow: `0 0 20px ${c1}40`,
+                flex: 1,
+                padding: '9px 0',
+                borderRadius: 10,
+                border: 'none',
+                fontSize: '0.75rem', fontWeight: 700,
+                color: '#fff',
+                cursor: 'pointer',
+                background: `linear-gradient(135deg, ${c1}, ${c3 || c2})`,
+                boxShadow: `0 0 18px ${c1}45`,
+                transition: 'all 0.2s',
               }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 0 28px ${c1}70` }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = `0 0 18px ${c1}45` }}
             >
               Use Template
             </button>
             <button
               onClick={useTemplate}
-              className="px-3 py-2.5 rounded-xl text-xs font-medium text-white/50
-                hover:text-white border border-white/[0.10] hover:border-white/[0.20]
-                bg-white/[0.04] hover:bg-white/[0.08] transition-all duration-200"
-              title="Preview in builder"
+              title="Open in builder"
+              style={{
+                padding: '9px 13px',
+                borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.12)',
+                fontSize: '0.8rem', fontWeight: 500,
+                color: 'rgba(255,255,255,0.45)',
+                background: 'rgba(255,255,255,0.04)',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = '#fff'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)'
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = 'rgba(255,255,255,0.45)'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+              }}
             >
               ↗
             </button>

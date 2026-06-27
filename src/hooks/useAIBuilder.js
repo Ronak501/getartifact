@@ -1,30 +1,18 @@
-/**
- * useAIBuilder — full Prompt → Blueprint → Website Blueprint → Veo → Code pipeline.
- *
- * Phase 1: ANALYZING  — AIArchitect.analyzePrompt()              (local)
- * Phase 2: GENERATING — BlueprintGenerator.generateBlueprint()   (Claude)
- * Phase 3: WEBSITE    — WebsiteBlueprintEngine.generateWebsite() (Claude)
- * Phase 4: VEO        — VeoPromptEngine.generateVeoPrompt()      (Gemini 2.5 Flash)
- * Phase 5: BUILDING   — CodeGenerator.generateAllCode()          (local)
- * Phase 6: READY      → finishGeneration() + Supabase save
- */
+"use client"
 
 import { useCallback } from 'react'
-import { analyzePrompt }            from '@core/AIArchitect'
-import { generateBlueprint }        from '@core/BlueprintGenerator'
-import { generateWebsiteBlueprint } from '@core/WebsiteBlueprintEngine'
-import { generateVeoPrompt }        from '@core/VeoPromptEngine'
-import { generateAllCode }          from '@core/CodeGenerator'
 import useBlueprintStore, { PHASES, OUTPUT_TABS } from '@store/blueprintStore'
-import useAuthStore from '@store/authStore'
-import useCreditStore from '@store/creditStore'
-import { supabase } from '@lib/supabase'
+import useAuthStore    from '@store/authStore'
+import useCreditStore  from '@store/creditStore'
+import { supabase }    from '@lib/supabase'
 
 export function useAIBuilder() {
   const {
     prompt,
     setPhase,
-    finishGeneration,
+    setVideoUrl,
+    setVideoProgress,
+    setVideoSite,
     setError,
   } = useBlueprintStore()
 
@@ -32,93 +20,183 @@ export function useAIBuilder() {
     const input = customPrompt ?? prompt
     if (!input?.trim()) return
 
-    // ── Credit gate ───────────────────────────────────────────────────────────
     const credits = useCreditStore.getState()
     if (credits.loaded && !credits.can_build) {
-      setError(`Build limit reached (${credits.builds_used}/${credits.builds_limit} used on ${credits.plan} plan). Upgrade to continue.`)
+      setError(`Build limit reached (${credits.builds_used}/${credits.builds_limit} used). Upgrade to continue.`)
       return
     }
 
+    const authHeader = useAuthStore.getState().session?.access_token
+      ? `Bearer ${useAuthStore.getState().session.access_token}`
+      : null
+
     try {
-      // ── Phase 1: Analyze ──────────────────────────────────────────────────
-      setPhase(PHASES.ANALYZING, 'Analyzing intent...', 5)
-      await tick()
-      const intent = analyzePrompt(input)
-
-      // ── Phase 2: Architecture Blueprint (Claude) ───────────────────────────
-      setPhase(PHASES.GENERATING, 'Generating architecture blueprint...', 16)
-      const blueprint = await generateBlueprint(intent, {
-        onProgress: ({ phase: p, label }) => {
-          const map = { 1: 22, 2: 32, 3: 40 }
-          setPhase(PHASES.GENERATING, label, map[p] ?? 28)
+      // ── Step 1: Generate Storyboard & Veo Prompt ───────────────────────────
+      setPhase(PHASES.STORYBOARD, 'Generating website storyboard and design layout...', 15)
+      
+      const sbRes = await fetch('/api/generate-storyboard', {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
+        body: JSON.stringify({ prompt: input }),
+      })
+      if (!sbRes.ok) throw new Error(`Storyboard generation failed: ${sbRes.status}`)
+      const { storyboard } = await sbRes.json()
+
+      useBlueprintStore.setState({ storyboard, approved: false, videoUrl: null, videoSite: null })
+
+      // ── Step 2: Render Cinematic 3D Preview Video ─────────────────────────
+      setPhase(PHASES.VIDEO_RENDERING, 'Rendering 3D preview video (Veo 2)...', 40)
+      
+      const veoPrompt = storyboard.veo_prompt
+      const videoRes = await fetch('/api/generate-video', {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify({ veoPrompt }),
       })
 
-      // ── Phase 3: Render-ready Website Blueprint (Claude) ──────────────────
-      setPhase(PHASES.WEBSITE, 'Generating render-ready website blueprint...', 48)
-      const websiteBlueprint = await generateWebsiteBlueprint(input, label => {
-        setPhase(PHASES.WEBSITE, label, 56)
-      })
-      blueprint.websiteBlueprint = websiteBlueprint
+      if (!videoRes.ok) throw new Error(`Video API failed: ${videoRes.status}`)
 
-      // ── Phase 4: Veo Prompt (Gemini 2.5 Flash) ─────────────────────────────
-      setPhase(PHASES.VEO, 'Building Veo 2 cinematic prompt...', 65)
-      const veoData = await generateVeoPrompt(input, blueprint, {
-        onProgress: ({ label }) => setPhase(PHASES.VEO, label, 72),
-      })
-      blueprint.veoData = veoData
+      const reader  = videoRes.body.getReader()
+      const decoder = new TextDecoder()
+      let finalUrl = null
 
-      // ── Phase 5: Code Generation (AI-driven with local fallback) ───────────
-      setPhase(PHASES.BUILDING, 'Generating React + Three.js components...', 84)
-      try {
-        const codeRes = await fetch('/api/generate-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: input, blueprint }),
-        })
-        if (!codeRes.ok) throw new Error(`Code API responded with status ${codeRes.status}`)
-        const { code } = await codeRes.json()
-        blueprint.generatedCode = code
-      } catch (err) {
-        console.warn('[useAIBuilder] Dynamic code generation failed, using local templates fallback:', err.message)
-        blueprint.generatedCode = generateAllCode(blueprint)
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6))
+            if (data.status === 'processing') {
+              setVideoProgress(data.progress || 0.5)
+              setPhase(PHASES.VIDEO_RENDERING, data.message || 'Rendering video...', Math.round(40 + (data.progress || 0) * 40))
+            } else if (data.status === 'complete') {
+              finalUrl = data.videoUri
+            } else if (data.status === 'error') {
+              throw new Error(data.message || 'Video generation error')
+            }
+          }
+        }
       }
 
-      // ── Phase 6: Done — single atomic state update ─────────────────────────
-      finishGeneration(blueprint, intent, websiteBlueprint, veoData)
+      if (!finalUrl) throw new Error('Video generation completed but no video URL returned')
 
-      // ── Optimistic credit decrement ────────────────────────────────────────
-      useCreditStore.getState().optimisticDecrement()
+      // Convert Google Storage gs:// URI to our authenticated Proxy URL
+      const proxyUrl = `/api/video-proxy?uri=${encodeURIComponent(finalUrl)}`
+      setVideoUrl(proxyUrl)
 
-      // ── Cloud Save (if authenticated) ──────────────────────────────────────
-      const user = useAuthStore.getState().user
-      if (user) {
-        supabase.from('blueprints').insert({
-          user_id:                user.id,
-          name:                   blueprint.concept?.websiteName ?? 'Untitled',
-          prompt:                 input,
-          design_style:           blueprint.concept?.designStyle  ?? null,
-          color_primary:          blueprint.palette?.primary       ?? null,
-          color_secondary:        blueprint.palette?.secondary     ?? null,
-          color_accent:           blueprint.palette?.accent        ?? null,
-          blueprint_json:         blueprint,
-          website_blueprint_json: websiteBlueprint,
-          veo_data_json:          veoData,
-          generated_code_json:    blueprint.generatedCode ?? null,
-        }).then(({ error }) => {
-          if (error) console.warn('[Supabase] Blueprint save failed:', error.message)
-        })
-      }
+      // ── Step 3: Enter User Review Gate ────────────────────────────────────
+      setPhase(PHASES.USER_REVIEW, 'Review your website 3D preview video to proceed', 100)
+      useBlueprintStore.setState({ activeTab: OUTPUT_TABS.VIDEO })
 
     } catch (err) {
       setError(err?.message ?? 'Generation failed')
+    }
+  }, [prompt, setPhase, setError, setVideoProgress, setVideoUrl])
+
+  // ── Step 4 & 5: Vision AI Analysis & Code Generation (Post-Approval) ─────
+  const approveAndBuild = useCallback(async () => {
+    const state = useBlueprintStore.getState()
+    const { videoUrl, storyboard, prompt: input } = state
+    if (!videoUrl || !storyboard) return
+
+    const authHeader = useAuthStore.getState().session?.access_token
+      ? `Bearer ${useAuthStore.getState().session.access_token}`
+      : null
+
+    try {
+      useBlueprintStore.setState({ approved: true })
+
+      // ── Step 4: Vision AI Analysis on Video Frames ─────────────────────────
+      setPhase(PHASES.VISION_ANALYSIS, 'Analyzing video frames via Vision AI pipeline...', 25)
+
+      const visRes = await fetch('/api/vision-analysis', {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify({ videoUrl, storyboard }),
+      })
+      if (!visRes.ok) throw new Error(`Vision analysis failed: ${visRes.status}`)
+      const { websiteBlueprint } = await visRes.json()
+
+      useBlueprintStore.setState({ websiteBlueprint })
+
+      // ── Step 5: Generate custom Components & Code ────────────────────────
+      setPhase(PHASES.CODE_GENERATION, 'Generating Next.js components & assembling site...', 65)
+
+      const codeRes = await fetch('/api/generate-code', {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify({ prompt: input, blueprint: websiteBlueprint }),
+      })
+      if (!codeRes.ok) throw new Error(`Code generation failed: ${codeRes.status}`)
+      const { code } = await codeRes.json()
+
+      const unifiedBlueprint = {
+        ...websiteBlueprint,
+        tech: {
+          framework: 'Next.js 14', renderer: 'React Three Fiber', helpers: ['Drei'],
+          animation: ['Framer Motion', 'GSAP'], styling: 'Tailwind CSS v3', state: 'Zustand', build: 'Next'
+        },
+        generatedCode: {
+          heroJSX:       code.heroJSX,
+          sceneJSX:      code.sceneJSX,
+          sampleSection: code.sampleSection,
+          appJSX:        code.appJSX,
+          fileTree:      code.fileTree,
+          installCmd:    code.installCmd,
+        },
+      }
+
+      useBlueprintStore.setState({
+        blueprint:        unifiedBlueprint,
+        phase:            PHASES.READY,
+        phaseProgress:    100,
+        phaseLabel:       'Your site is built and live!',
+        activeTab:        OUTPUT_TABS.PREVIEW,
+      })
+
+      // Cloud Save
+      const user = useAuthStore.getState().user
+      if (user) {
+        supabase.from('blueprints').insert({
+          user_id:             user.id,
+          name:                websiteBlueprint.creative_concept?.website_name ?? '3D Site',
+          prompt:              input,
+          design_style:        websiteBlueprint.creative_concept?.design_style ?? '3D Interactive',
+          color_primary:       websiteBlueprint.design_system?.color_palette?.primary ?? null,
+          color_secondary:     websiteBlueprint.design_system?.color_palette?.secondary ?? null,
+          color_accent:        websiteBlueprint.design_system?.color_palette?.accent ?? null,
+          blueprint_json:      unifiedBlueprint,
+          veo_data_json:       storyboard,
+          generated_code_json: unifiedBlueprint.generatedCode,
+        }).then(({ error }) => {
+          if (error) console.warn('[Supabase] Sync failed:', error.message)
+        })
+      }
+
+      useCreditStore.getState().optimisticDecrement()
+
+    } catch (err) {
+      setError(err?.message ?? 'Build pipeline failed')
     } finally {
-      // Refresh real credit count from server
       useCreditStore.getState().fetchCredits()
     }
-  }, [prompt, setPhase, finishGeneration, setError])
+  }, [setPhase, setError])
 
-  return { run }
+  return { run, approveAndBuild }
 }
-
-const tick = () => new Promise(r => setTimeout(r, 60))

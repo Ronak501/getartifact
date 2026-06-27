@@ -1,4 +1,7 @@
-import { Navigate, useLocation } from 'react-router-dom'
+"use client"
+
+import { useEffect } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import useAuthStore from '@store/authStore'
 
 /**
@@ -8,9 +11,16 @@ import useAuthStore from '@store/authStore'
  */
 export default function AuthGuard({ children }) {
   const { user, loading } = useAuthStore()
-  const location          = useLocation()
+  const router = useRouter()
+  const pathname = usePathname()
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace(`/login?from=${encodeURIComponent(pathname)}`)
+    }
+  }, [loading, user, router, pathname])
+
+  if (loading || !user) {
     return (
       <div className="min-h-screen bg-[#0a0a14] flex items-center justify-center">
         <svg className="animate-spin w-8 h-8 text-brand-400" viewBox="0 0 24 24" fill="none">
@@ -19,10 +29,6 @@ export default function AuthGuard({ children }) {
         </svg>
       </div>
     )
-  }
-
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
   return children

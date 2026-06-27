@@ -8,7 +8,7 @@
 import { create } from 'zustand'
 import { supabase } from '@lib/supabase'
 
-const API = 'http://localhost:3000'
+const API = ''
 
 const useCreditStore = create((set, get) => ({
   // ── State ──────────────────────────────────────────────────────────────────

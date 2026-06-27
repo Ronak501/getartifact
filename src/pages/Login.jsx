@@ -1,12 +1,15 @@
+"use client"
+
 import { useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from '@lib/router-shim'
 import { motion } from 'framer-motion'
 import useAuthStore from '@store/authStore'
 
 export default function Login() {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const from      = location.state?.from ?? '/dashboard'
+  const searchParams = new URLSearchParams(location.search)
+  const from      = location.state?.from ?? searchParams.get('from') ?? '/dashboard'
 
   const { signIn, signInWithGoogle, error, clearError } = useAuthStore()
 

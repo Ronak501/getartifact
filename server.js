@@ -2,10 +2,13 @@
  * AI 3D Website Builder — Express API Server
  *
  * Endpoints:
- *   POST /api/generate-blueprint         — AI model → JSON architecture blueprint
- *   POST /api/generate-website-blueprint — AI model → render-ready website JSON
- *   POST /api/generate-veo-prompt        — AI model → cinematic Veo prompt JSON
- *   POST /api/generate-video             — Veo 2 on Vertex AI → video (SSE stream)
+ *   POST /api/generate-storyboard        — Pipeline Step 1: AI → storyboard + veo_prompt
+ *   POST /api/generate-video             — Pipeline Step 2: Veo 2 → video (SSE stream)
+ *   POST /api/vision-analysis            — Pipeline Step 4: storyboard → websiteBlueprint
+ *   POST /api/generate-code              — Pipeline Step 5: blueprint → React/Next.js code
+ *   POST /api/generate-blueprint         — Legacy: AI model → JSON architecture blueprint
+ *   POST /api/generate-website-blueprint — Legacy: AI model → render-ready website JSON
+ *   POST /api/generate-veo-prompt        — Legacy: AI model → cinematic Veo prompt JSON
  *   POST /api/check-credits              — Check user credits & plan
  *   GET  /api/video-proxy                — Proxy GCS video URI to browser
  *   GET  /api/health                     — Health check
@@ -480,17 +483,28 @@ const INDUSTRY_THREE_D = {
   saas: ['ai-brain', 'neural-network', 'particle-field', 'geometric-grid'],
 }
 
+// Layout archetypes A-J (Master Prompt spec)
 const LAYOUTS = [
-  'Left hero with right 3D scene',
-  'Full-screen centered hero with floating elements',
-  'Split-screen hero (text left, visual right)',
-  'Bento grid layout with asymmetric cards',
-  'Magazine editorial grid',
-  'Zig-zag alternating sections',
-  'Fullscreen scrollytelling with sticky panels',
-  'Masonry card layout',
-  'Timeline with large visuals',
-  'Horizontal scroll sections',
+  // A — Fullscreen 3D immersive
+  'Layout-A: Fullscreen 3D scene occupies the entire viewport. Floating navbar overlaid on top. Content text and CTAs appear over the 3D scene with glassmorphism panels.',
+  // B — Split screen
+  'Layout-B: Exact 50/50 vertical split. Left = bold typography headline + CTA stack. Right = interactive 3D scene or gallery. Zero hero padding — content starts edge-to-edge.',
+  // C — Magazine editorial
+  'Layout-C: No traditional hero. Page opens with oversized editorial typography across a full-width grid. Sections are asymmetric editorial blocks. Mixed column widths. Images break the grid.',
+  // D — Bento grid
+  'Layout-D: Bento grid homepage. Multiple differently-sized interactive cards fill the viewport. Each card contains a 3D mini-scene, stat, or feature. No traditional hero section.',
+  // E — Apple-style minimal
+  'Layout-E: Huge whitespace. Single centred headline at 96-128px. Subtitle below. One primary CTA. 3D object floats below the fold. Every section is a full-page breathable moment.',
+  // F — Dashboard panels
+  'Layout-F: Dark dashboard interface. Left sidebar navigation. Right content area split into floating panel widgets. 3D data visualization widgets. Stats and live counters in panels.',
+  // G — Timeline horizontal scroll
+  'Layout-G: Horizontal scrolling timeline. Each panel is a chapter of the brand story. Progress indicator at top. 3D objects transform between chapters. Pinned vertical sections within.',
+  // H — Storytelling scroll
+  'Layout-H: Full-page scroll storytelling. Every scroll snap changes the ENTIRE screen layout and color. Section 1 = hero. Section 2 = problem. Section 3 = solution. Dramatic transitions.',
+  // I — Circular / radial
+  'Layout-I: Circular navigation menu in the center. Content orbits around the center. Clicking a nav item rotates the wheel to reveal that section. 3D scene is the rotating hub.',
+  // J — Infinite canvas
+  'Layout-J: Zoomable, pannable canvas interface. Elements float at different depths. Users can drag to explore. Clusters of related content. Like Miro or Figma but for a landing page.',
 ]
 
 const COLOR_PALETTES = {
@@ -560,47 +574,84 @@ app.post('/api/generate-website-blueprint', async (req, res) => {
   const industry = classifyIndustry(prompt)
   const { style, threeDObj, threeDObj2, layout, animation, palette } = getVariation(industry)
 
-  const SYSTEM = `You are not a template generator. You are a senior creative director, 3D web designer, React developer, and Three.js motion designer.
+  const SYSTEM = `You are Getartifact — a world-class AI creative director, 3D web designer, React developer, and motion designer. You generate render-ready website blueprints.
 
-Your task is to create a completely new website design for every user prompt.
+OUTPUT RULE: Return ONLY a valid JSON object. No markdown, no code blocks, no comments, no extra text.
 
-PRIME DIRECTIVE: If the output looks like a previous website with only the name, colors, icons, or text changed, the generation has failed. You must invent a fresh UI concept, fresh layout system, fresh 3D scene, fresh motion style, and fresh section structure based on the exact business idea.
+════════════════════════════════════════
+MASTER PROMPT — 20 RULES FOR UNIQUE WEBSITES
+════════════════════════════════════════
 
-OUTPUT RULE: Generate ONLY the JSON blueprint. No markdown. No explanations. No code blocks. No comments. No extra text.
+RULE 1 — LAYOUT ARCHETYPE (pick the one injected in USER message):
+  Layout-A: Fullscreen 3D scene covers entire viewport. Floating navbar overlaid. CTAs appear on glassmorphism panels over the scene.
+  Layout-B: Exact 50/50 split. Left = bold headline + CTA stack. Right = interactive 3D scene. Edge-to-edge, zero hero padding.
+  Layout-C: No hero. Opens with oversized editorial typography across full-width grid. Asymmetric blocks, mixed columns, images break the grid.
+  Layout-D: Bento grid. Differently-sized interactive cards fill viewport. Each card = 3D mini-scene, stat, or feature. No traditional hero.
+  Layout-E: Huge whitespace. Single centred headline 96-128px. Subtitle. One CTA. 3D object floats below fold. Every section is a full-page breathable moment.
+  Layout-F: Dark dashboard. Left sidebar nav. Right = floating panel widgets with 3D data viz, stats, live counters.
+  Layout-G: Horizontal scrolling timeline. Each panel = brand story chapter. Progress bar at top. 3D objects transform between chapters.
+  Layout-H: Scroll-snap storytelling. Every snap changes ENTIRE screen layout + colour. Section 1=hero, 2=problem, 3=solution. Dramatic transitions.
+  Layout-I: Circular navigation hub. Content orbits the centre. Clicking nav item rotates wheel to reveal section. 3D scene is the hub.
+  Layout-J: Zoomable pannable canvas. Elements float at different depths. Users drag to explore. Clusters of related content.
 
-CORE RULES:
-1. Do not reuse the same UI structure.
-2. Do not always create a center hero with text and a floating 3D object.
-3. Do not always use glass cards.
-4. Do not always use dark neon gradients.
-5. Do not always use generic spheres, cubes, torus knots, particles, AI brains, dashboards, or floating cards.
-6. Do not only change name and colors.
-7. Every page must feel designed for this specific business.
-8. The 3D scene must be unique to the user prompt and implemented in code.
-9. The 3D scene must be a real website element, not just a video description.
-10. The UI must look like a custom agency-built website, not a repeated SaaS template.
+RULE 2 — DESIGN LANGUAGE: Every project gets a new design language. Vary: typography scale, spacing rhythm, border radius, grid, card design, shadow system, glass effect, dark/light mode preference.
 
-DESIGN DIVERSITY REQUIREMENTS:
-Before creating the design, choose a unique layout archetype based on the prompt. Pick one suitable layout archetype:
-- cinematic full-screen 3D landing page
-- editorial magazine layout
-- luxury product showcase
-- immersive scroll-based story
-- dashboard interface
-- split-screen product demo
-- horizontal gallery experience
-- brutalist creative studio layout
-- mobile-app-first landing page
-- ecommerce product wall
-- portfolio/case-study layout
-- booking/reservation interface
-- map/location-based interface
-- timeline-based storytelling layout
-- interactive configurator layout
+RULE 3 — COLOR PALETTE: Use the palette injected in USER. Palette styles: Cyberpunk (neon on black), Minimal White (off-white + one bold accent), Nature Green (earth tones), Luxury Black (gold on near-black), Pastel (soft pinks/blues), Retro (orange/brown/cream), Neon Synthwave (purple/magenta), Ocean Blue (deep teal), Monochrome, Fire Red/Orange.
 
-Never use the same archetype by default.
+RULE 4 — NAVIGATION: Vary per prompt. Options: top-bar transparent → solid on scroll, sidebar vertical, floating dock centered, bottom mobile nav, circular radial menu, hamburger overlay fullscreen, animated underline tabs, expandable mega-menu, sticky minimal logo+CTA only.
 
+RULE 5 — HERO TYPE: Vary per prompt. Options: centered text + 3D, video background, pure 3D interactive (no text in viewport), horizontal scrolling reveal, split-screen, interactive particle/mouse, parallax depth layers, giant typography only, full-bleed image + overlay, carousel autoplay.
+
+RULE 6 — SECTIONS: Pick 6–10 from: About/Mission, Features grid, Services list, Gallery/portfolio, Timeline history, Pricing table, FAQ accordion, Testimonials, Team, Blog preview, Stats counter, Map/location, Contact form, CTA banner, Newsletter, Process steps, Partners logos, Before/After slider, Video showcase, Awards/press.
+
+RULE 7 — SCROLL EXPERIENCE: Choose one: smooth inertia (Lenis), pinned section sequence, horizontal panel scroll, parallax multi-layer, snap full-page, infinite loop, story-driven chapter scroll, GSAP ScrollTrigger, Framer Motion viewport.
+
+RULE 8 — ANIMATION LANGUAGE: Choose one dominant style: morphing shapes, floating gravity, physics collisions, elastic spring, magnetic cursor follow, hover distortion warp, particle burst on click, smoke/fluid sim, liquid metal, 3D perspective tilt.
+
+RULE 9 — 3D EXPERIENCE: Match the 3D scene to the industry. Examples: tech → abstract data sculpture / AI brain / particle network; restaurant → 3D food model / kitchen scene; gym → human anatomy / weight physics; crypto → blockchain lattice / coin orbit; music → 3D speaker / audio waveform; fashion → 3D mannequin / fabric sim; travel → 3D globe / airplane; architecture → 3D building walkthrough; gaming → character rig / level map; nature → 3D forest / terrain; medical → DNA helix / cell model.
+
+RULE 10 — BACKGROUND: Choose one: pure solid dark, gradient mesh animated, dot/grid pattern, noise texture overlay, video loop, 3D environment fog, star field, geometric line grid, aurora gradient, bokeh blur.
+
+RULE 11 — CARD STYLE: Choose one: glassmorphism frosted, neumorphism soft-shadow, hard border brutalist, gradient border glow, minimal borderless, 3D perspective hover, floating with drop-shadow, tile mosaic.
+
+RULE 12 — BUTTON STYLE: Choose one: pill gradient, sharp rectangular with border, ghost outline hover-fill, animated underline text, 3D pressed effect, neon glow pulse, magnetic hover drift, split diagonal fill.
+
+RULE 13 — FOOTER: Choose one: minimal single-line, large editorial with brand statement, dark full-grid with social links, sticky bottom bar, call-to-action footer with 3D element, newsletter-first, sitemap columns, animated gradient footer.
+
+RULE 14 — CURSOR: Choose one: custom dot + ring follower, magnetic snap to buttons, trail particle effect, color-invert spotlight, 3D object orbits cursor, hidden (touch-optimized), crosshair precision, animated SVG morph.
+
+RULE 15 — MICRO-INTERACTIONS: Include 3+: button hover state, link underline draw, card lift on hover, counter number roll, input field focus glow, scroll progress indicator, page transition fade, toast notification, loading skeleton, icon rotate on hover.
+
+RULE 16 — LAYOUT COMPOSITION: Each section must have a unique composition. Vary: full-bleed edge-to-edge vs constrained container, asymmetric columns, overlapping elements, negative space, bleed images, rotated elements, diagonal cuts, staggered grids.
+
+RULE 17 — COMPONENT ORDER: Randomize section order to avoid formulaic pages. Do NOT always follow: Hero → Features → Pricing → Testimonials → CTA. Try: Hero → Stats → Gallery → Problem → Solution → Testimonials → Pricing → FAQ → CTA, or other non-default orderings.
+
+RULE 18 — AI INDUSTRY MATCHING: Match UI style to industry:
+  restaurant/food → warm palette, food gallery, reservation CTA, serif typography
+  gaming/esports → cyberpunk neon, particle effects, countdown timer, bold condensed font
+  finance/crypto → trust signals, dashboard panels, dark conservative, mono font
+  health/wellness → clean minimal, pastel, breathing animation, rounded cards
+  fashion/luxury → editorial layout, high contrast, serif/script mix, white space
+  music/events → high energy, bold color, ticket CTA, distorted typography
+  tech/SaaS → futuristic, glass panels, feature grid, gradient accent
+  education → friendly, bright, progress indicators, card curriculum
+  real-estate → full-bleed photography, map integration, property cards
+  travel → panoramic imagery, globe 3D, destination cards, adventure tone
+
+RULE 19 — DIVERSITY SCORE (internal validation before responding):
+  - layout_similarity_to_previous < 20%
+  - color_similarity < 20%
+  - animation_similarity < 20%
+  - typography_similarity < 20%
+  - component_order_similarity < 20%
+  - 3d_scene_similarity < 20%
+  If ANY score ≥ 20%, regenerate that dimension with a different choice before outputting.
+
+RULE 20 — ANTI-TEMPLATE RULE: If only the name, colors, and text changed from a generic SaaS template, the generation has FAILED. Invent a completely fresh UI concept, fresh layout system, fresh 3D scene, fresh motion style, and fresh section structure.
+
+════════════════════════════════════════
 JSON SCHEMA (follow exactly):
+════════════════════════════════════════
 {
   "creative_concept": {
     "website_name": "",
@@ -610,6 +661,7 @@ JSON SCHEMA (follow exactly):
     "why_this_design_fits": "",
     "layout_archetype": "",
     "visual_signature": "",
+    "diversity_score": { "layout": 0, "color": 0, "animation": 0, "typography": 0, "component_order": 0, "3d_scene": 0 },
     "must_not_look_like": []
   },
   "design_system": {
@@ -619,24 +671,39 @@ JSON SCHEMA (follow exactly):
       "accent": "#hex",
       "background": "#hex",
       "surface": "#hex",
-      "text": "#hex"
+      "text": "#hex",
+      "palette_style": ""
     },
     "typography": {
-      "heading_font": "Syne",
-      "body_font": "Inter",
-      "type_style": "bold-expanded|serif-editorial|tech-mono|minimal-sans"
+      "heading_font": "",
+      "body_font": "",
+      "type_style": "",
+      "heading_weight": "",
+      "heading_size_hero": ""
     },
     "ui_style": {
       "navigation_style": "",
+      "hero_type": "",
       "button_style": "",
       "card_style": "",
       "section_style": "",
-      "background_style": ""
+      "background_style": "",
+      "cursor_style": "",
+      "scroll_experience": "",
+      "footer_style": ""
+    },
+    "animation": {
+      "dominant_style": "",
+      "scroll_trigger": "",
+      "hover_effect": "",
+      "page_transition": "",
+      "micro_interactions": []
     }
   },
   "cinematic_3d_scene": {
     "scene_name": "",
     "scene_purpose": "",
+    "scene_type": "",
     "main_3d_subject": "",
     "supporting_objects": [],
     "environment": "",
@@ -656,17 +723,9 @@ JSON SCHEMA (follow exactly):
     "primary_cta": "",
     "secondary_cta": "",
     "3d_integration": "",
-    "animation_style": ""
+    "animation_style": "",
+    "background_treatment": ""
   },
-  "pages": [
-    {
-      "name": "",
-      "path": "",
-      "purpose": "",
-      "unique_layout": "",
-      "sections": []
-    }
-  ],
   "sections": [
     {
       "id": "",
@@ -677,38 +736,47 @@ JSON SCHEMA (follow exactly):
       "content": [],
       "visual_treatment": "",
       "animation": "",
-      "3d_element": ""
+      "3d_element": "",
+      "composition": ""
     }
   ],
+  "pages": [
+    { "name": "", "path": "", "purpose": "", "unique_layout": "", "sections": [] }
+  ],
   "code_generation_rules": {
-    "hero_component": "Generate a custom hero component for this exact prompt. Do not reuse a fixed hero template.",
-    "three_scene_component": "Generate a custom React Three Fiber scene from cinematic_3d_scene. Do not use generic default objects.",
-    "layout_rule": "Every section must use the selected layout archetype and business context.",
-    "content_rule": "All copy must be specific to the user prompt. No placeholder or generic SaaS text.",
-    "anti_template_rule": "If only colors, name, and text changed, regenerate with a new layout and new 3D scene."
+    "hero_component": "Custom hero matching hero.layout and hero.animation_style. Never reuse a fixed hero template.",
+    "three_scene_component": "Custom React Three Fiber scene from cinematic_3d_scene. No generic defaults.",
+    "layout_rule": "Every section uses the selected layout_archetype and business context.",
+    "content_rule": "All copy specific to this business. No generic SaaS placeholder text.",
+    "scroll_rule": "Implement scroll_experience from design_system.ui_style.",
+    "animation_rule": "Apply animation.dominant_style throughout. Include all micro_interactions listed.",
+    "anti_template_rule": "If only colors, name, and text changed from a generic template, this is a FAILURE. Regenerate."
   }
 }`
 
   const USER = `Generate a UNIQUE, SPECIFIC website blueprint for this exact business:
 "${prompt}"
 
-MANDATORY SPECIFICATIONS — implement this aesthetic fully in all design decisions:
+ASSIGNED VARIATION PARAMETERS — implement ALL of these in the output:
 - Industry: ${industry}
-- Visual style variation: "${style}"
-- Layout archetype recommendation: "${layout}"
-- Primary 3D object recommendation: "${threeDObj}"
-- Colors: background ${palette.bg}, primary ${palette.primary}, secondary ${palette.secondary}, accent ${palette.accent}, text ${palette.text}
+- Visual style: "${style}"
+- Layout archetype: "${layout}"
+- Primary 3D object: "${threeDObj}"
+- Secondary 3D object: "${threeDObj2}"
+- Animation style: "${animation}"
+- Colors: background ${palette.bg} | primary ${palette.primary} | secondary ${palette.secondary} | accent ${palette.accent} | text ${palette.text}
 
-UNIQUENESS REQUIREMENTS — every item must be SPECIFIC to this business:
-1. website_name: invent a memorable brand name (never generic like "TechCorp")
-2. hero.headline: punchy industry-specific tagline (never "Build Faster" / "Scale Better")
-3. hero.subheadline: specific value proposition for this exact ${industry} business
-4. hero.cta_primary / cta_secondary: action-oriented text for this industry
-5. features: 6 features directly relevant to ${industry} — real capabilities, not generic
+CONTENT REQUIREMENTS (all must be specific to this business, never generic):
+1. website_name: memorable brand name (never "TechCorp", "StartupAI", "InnovateCo")
+2. hero.headline: punchy tagline for THIS exact business (never "Build Faster" / "Scale Better")
+3. hero.subheadline: specific value proposition for this ${industry} business
+4. sections: 6–10 sections in non-formulaic order (see Rule 17)
+5. features/services: directly relevant to ${industry} — real capabilities
 6. stats: 4 metrics with numbers that make sense for a ${industry} business
 7. testimonials: 3 testimonials from real-sounding ${industry} customers
-8. pricing: 3 tiers with names and features appropriate for ${industry}
-9. navbar links: industry-appropriate pages (e.g., restaurant → Menu, Reservations, About, Catering)
+8. pricing: 3 tiers appropriate for ${industry} (if applicable)
+9. navbar links: industry-appropriate (restaurant → Menu, Reservations, About; SaaS → Product, Pricing, Docs)
+10. 3D scene: a scene specific to ${industry} per Rule 9 — not a generic sphere or torus
 
 Return ONLY the JSON object — no other text.`
 
@@ -740,40 +808,74 @@ app.post('/api/generate-code', async (req, res) => {
 
   const SYSTEM = `You are Getartifact — an award-winning senior creative director, 3D web designer, React developer, and Three.js motion designer.
 
-OUTPUT RULE: Generate ONLY a valid JSON object matching the schema below. No markdown explanation. No markdown code blocks (e.g. do NOT wrap with \`\`\`json). No comments inside JSON. No text before or after the JSON.
+OUTPUT RULE: Generate ONLY a valid JSON object. No markdown, no code blocks, no comments, no extra text.
 
-Your task is to write production-ready, custom React, Framer Motion, and React Three Fiber (R3F) code tailored specifically for this website.
+Your task: write production-ready React + Framer Motion + React Three Fiber (R3F) code that exactly implements the layout_archetype and design_system from the blueprint.
 
-CRITICAL UNIQUENESS RULES:
-- Do not use any fixed template.
-- For every generation:
-  * Create a new, unique Hero layout (never reuse the same structure).
-  * Create a new Cinematic3DScene component.
-  * Create custom 3D objects from the blueprint's cinematic_3d_scene.main_3d_subject (do not use generic spheres, cubes, torus knots, or default particle systems).
-  * Use different section layouts based on the selected layout_archetype.
-  * Make the 3D scene fully visible and integrated as a real website element, not just a description.
-  * Use real, business-specific text (never output TODO comments, placeholders, or generic SaaS phrases unless explicitly requested).
-  * Never reuse generic SaaS cards/grids unless the prompt asks for a SaaS product.
-  * Never use the same UI structure twice.
+════════════════════════════════════════
+LAYOUT-ARCHETYPE CODE RULES
+════════════════════════════════════════
+Layout-A (Fullscreen 3D): heroJSX renders a fullscreen Canvas with the 3D scene as the background. Text/CTAs float over it in absolute-positioned glassmorphism containers. No split, no side-by-side.
 
-JSON SCHEMA (Return exactly this structure):
+Layout-B (Split-screen): heroJSX is a CSS grid with exactly two 50vw columns. Left = headline stack + CTAs. Right = Canvas with 3D scene. Edge-to-edge, no padding on outer edges.
+
+Layout-C (Editorial magazine): heroJSX is a typographic grid. Giant headline spans the full width (min 96px). No hero section. Page opens directly into an oversized editorial block.
+
+Layout-D (Bento grid): heroJSX renders a CSS grid of differently-sized cards (using grid-template-areas). Multiple Canvas instances for mini-3D scenes inside cards. No single large hero.
+
+Layout-E (Minimal whitespace): heroJSX is centred text only. Single headline at 96-128px. Massive padding. 3D scene floats independently below, not overlapping.
+
+Layout-F (Dashboard): heroJSX shows a left sidebar nav + main content area with panel widgets. 3D visualisation inside a widget panel.
+
+Layout-G (Horizontal timeline): sampleSection implements a horizontal scroll container (overflow-x: scroll, scroll-snap-type: x mandatory). Each child = 100vw chapter panel.
+
+Layout-H (Scroll-snap story): heroJSX and sampleSection use scroll-snap-type: y mandatory. Each section = 100vh snap point. Dramatic colour/layout change per snap.
+
+Layout-I (Circular nav hub): heroJSX renders a centred circular SVG/CSS nav with orbiting items. Clicking rotates to reveal section. 3D scene is the hub.
+
+Layout-J (Zoomable canvas): heroJSX renders a panning/zooming div with transform-origin and wheel/drag handlers. Content clusters float at different z depths.
+
+════════════════════════════════════════
+ANIMATION RULES (apply from blueprint.design_system.animation)
+════════════════════════════════════════
+- dominant_style: apply this animation idiom to ALL interactive elements.
+- scroll_trigger: use Framer Motion whileInView / viewport with this effect.
+- hover_effect: apply to every card, button, and interactive element.
+- micro_interactions: implement EVERY item listed in the array.
+- In sceneJSX, implement the animation_loop from cinematic_3d_scene inside useFrame.
+
+════════════════════════════════════════
+3D SCENE RULES
+════════════════════════════════════════
+- Do NOT use a single generic sphere, box, or torus knot as the main subject.
+- You MUST construct the main 3D subject by nesting multiple geometries inside a <group>.
+  - For example, if it's a 'neural-network', compose it of multiple small spheres connected by dynamic buffer line geometries that update their position or alpha in a useFrame loop.
+  - If it's a 'planet', compose it of a central sphere, nested semi-transparent rotating ring meshes, and small satellite particles orbiting it.
+  - If it's an 'ai-brain', build it using nested wireframe icosahedrons, a glowing central core, and particles representing firing synapses.
+- Apply high-fidelity materials: use <meshPhysicalMaterial> or <meshStandardMaterial> with realistic transmission, thickness, metalness, and roughness settings.
+- Comprise a rich lighting rig inside the scene: custom colored ambient, point, and spot lights positioned to cast dramatic highlights.
+- Implement camera movement and mouse-tracking drift within useFrame to make the scene feel interactive.
+
+════════════════════════════════════════
+JSON SCHEMA
+════════════════════════════════════════
 {
-  "heroJSX": "Complete React component code for Hero.jsx. It must render a beautiful layout matching the layout_style and layout_archetype, displaying the headline, subheadline, custom CTAs, and overlaying or embedding the Canvas rendering <Cinematic3DScene />. Wrap elements in Framer Motion components with custom, premium entrance transitions.",
-  "sceneJSX": "Complete React Three Fiber component code for Cinematic3DScene.jsx. It must contain appropriate lighting, environment, camera path or animation, and a custom, detailed 3D geometry structure representing the main_3d_subject (constructed with groups, meshes, and specific materials matching the business concept) with smooth animations inside a useFrame hook.",
-  "sampleSection": "Complete React component code for the primary custom section matching the layout_archetype (e.g., editorial grid, luxury showcase, timeline, horizontal scroll, bento grid, etc.) with custom hover effects and Framer Motion stagger animations."
+  "heroJSX": "Complete Hero.jsx component implementing the layout_archetype exactly as described above. Use the blueprint headline, subheadline, primary_cta, secondary_cta. Apply animation.dominant_style with Framer Motion. Embed <Canvas><Cinematic3DScene /></Canvas>. Use Tailwind + inline styles. No placeholders.",
+  "sceneJSX": "Complete Cinematic3DScene.jsx using React Three Fiber. Build the main_3d_subject as a composed group of geometries, not a single primitive. Apply materials, lighting, camera_motion, and animation_loop from the blueprint. Implement user_interaction.",
+  "sampleSection": "Complete primary section component implementing the layout_archetype's section style. Use layout-appropriate structure: bento grid / horizontal scroll / snap section / editorial block / dashboard panel (matching layout_archetype). Apply hover effects and Framer Motion stagger. All content from blueprint sections[1]. No TODO comments."
 }`
 
-  const USER = `Generate custom production-ready React + Three.js code for the website: "${prompt}"
+  const USER = `Generate custom production-ready React + Three.js code for: "${prompt}"
 
 BLUEPRINT:
 ${JSON.stringify(blueprint, null, 2)}
 
-Requirements for the generated code:
-1. "heroJSX": Create a new Hero layout. Do not use a fixed Hero template. Build the Hero using Framer Motion animations, with customized typography, layout, buttons, and responsive styles that match the blueprint's design_style and layout_archetype. It must import and render the Canvas containing <Cinematic3DScene />. Make sure it is highly visible.
-2. "sceneJSX": Build the Cinematic3DScene component. Instead of a simple sphere or torus, construct a unique 3D subject matching the blueprint's main_3d_subject (e.g. using groups, custom meshes, interactive animations, and custom materials). Include nice lighting, stars/particles, and a CameraRig.
-3. "sampleSection": Generate code for the main section using layout_archetype (e.g. editorial, luxury product showcase, etc.). Use beautiful Tailwind card layouts, custom hover effects, and Framer Motion stagger animations. No placeholders or TODO comments.
+STRICT CODE REQUIREMENTS:
+1. heroJSX — implement blueprint.hero.layout + blueprint.creative_concept.layout_archetype. Match the layout archetype code rules above EXACTLY. Use blueprint.hero.headline, subheadline, primary_cta, secondary_cta, animation_style. Import and render Cinematic3DScene inside a Canvas.
+2. sceneJSX — implement blueprint.cinematic_3d_scene fully. Build the main_3d_subject as a composed group (not a single sphere/torus). Apply cinematic lighting, camera_motion inside useFrame, and user_interaction.
+3. sampleSection — implement blueprint.sections[1] (or the most interesting non-hero section). Use the section's layout, visual_treatment, animation, and composition fields. Stagger children with Framer Motion.
 
-Return ONLY the JSON object conforming to the schema.`
+Return ONLY the JSON object — no other text.`
 
   try {
     const raw = await generateWithModel(plan, SYSTEM, USER)
@@ -794,6 +896,117 @@ Return ONLY the JSON object conforming to the schema.`
     res.json({ code })
   } catch (err) {
     console.error('[generate-code]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── Video-First Site Generation ─────────────────────────────────────────────
+// Takes the Veo prompt data (already generated) + optional videoUrl and builds
+// a complete deploy-ready React website where the hero IS the video.
+app.post('/api/generate-video-site', async (req, res) => {
+  const { prompt, veoData, videoUrl } = req.body
+  if (!prompt?.trim())  return res.status(400).json({ error: 'prompt is required' })
+  if (!veoData)         return res.status(400).json({ error: 'veoData is required' })
+
+  const credits = await resolveUserCredits(req.headers.authorization)
+  if (credits && !credits.can_build) {
+    return res.status(402).json({
+      error: 'Build limit reached', code: 'LIMIT_REACHED',
+      plan: credits.plan, used: credits.builds_used, limit: credits.builds_limit,
+    })
+  }
+  const plan = credits?.plan ?? 'free'
+
+  const palette = veoData.color_palette ?? []
+  const primary   = palette[0] ?? '#6366f1'
+  const secondary = palette[1] ?? '#a78bfa'
+  const accent    = palette[2] ?? '#f59e0b'
+  const bg        = palette[3] ?? '#0a0a0f'
+
+  const SYSTEM = `You are Getartifact — a world-class React developer and creative director. Your task is to generate production-ready React + Tailwind website code where the hero section features a fullscreen autoplay video background.
+
+OUTPUT RULE: Return ONLY a valid JSON object. No markdown, no code blocks, no extra text.
+
+CORE PRINCIPLE — VIDEO IS THE DESIGN:
+The website's visual identity is entirely derived from the generated Veo video. The hero IS the video. All sections, colors, and typography must complement the video's aesthetic. Every site generated will look completely unique because every Veo video is unique.
+
+HERO RULES:
+- Hero = fullscreen <video autoPlay muted loop playsInline> covering 100vw × 100vh
+- Dark cinematic overlay on the video (gradient from transparent to background color)
+- Content (headline, sub, CTAs) positioned OVER the video using absolute positioning
+- If VIDEO_URL is empty string: show an ANIMATED CSS background with:
+  - Multiple radial-gradient layers pulsing with keyframe animation (@keyframes pulse in a <style> tag)
+  - Floating CSS blob divs with blur and animation
+  - A visible "Video rendering..." badge in the corner (optional)
+  - NO static grey box — make it visually rich even without video
+- The video element should ALWAYS be rendered (src={VIDEO_URL}) — when VIDEO_URL is empty the browser renders nothing, so the animated CSS background shows through
+
+SECTION RULES — generate sections that match the business type in the Veo data:
+- restaurant/food → Menu grid + Reservations CTA
+- gaming → Features grid + Live stats banner
+- fashion/luxury → Product grid + Brand story split
+- fitness/health → Programs cards + Trainers
+- music/events → Tour dates list + Artist profiles
+- finance/crypto → Metrics banner + Products comparison
+- travel → Destination cards grid
+- education → Course cards + Instructor profiles
+- creative/agency → Work list + Services tags
+- tech/SaaS → Features grid + Pricing table
+
+UNIQUENESS RULES:
+- Colors must come EXACTLY from the Veo data's color_palette
+- Typography must reflect the veoData.typography field
+- Section copy must be specific to the business (veoData.business_type + prompt)
+- Every section layout must be different from a generic SaaS template
+- The code must be COMPLETE and RUNNABLE — no placeholders, no TODOs, no "add your content here"
+
+JSON SCHEMA:
+{
+  "heroJSX": "Complete Hero.jsx component. Fullscreen video background. Overlay gradient. Content positioned absolutely. Framer Motion entrance animations. Includes VIDEO_URL constant set to the provided videoUrl (or empty string if none).",
+  "sectionsJSX": "Complete Sections.jsx with 2-3 industry-appropriate sections. Real content (not placeholder). Framer Motion whileInView animations. Uses the exact hex colors from veoData.",
+  "navbarJSX": "Complete Navbar.jsx with industry-appropriate nav links, transparent-to-solid-on-scroll, brand name from veoData.website_name.",
+  "footerJSX": "Complete Footer.jsx — minimal, brand name, nav links, copyright.",
+  "appJSX": "Complete App.jsx that imports and assembles all components.",
+  "indexCss": "Complete index.css with CSS custom properties for the palette, smooth scroll, body font, and scrollbar styling.",
+  "websiteName": "The brand name from veoData or inferred from prompt"
+}`
+
+  const USER = `Generate a complete deploy-ready React website for: "${prompt}"
+
+VEO DATA (design bible — derive ALL visual decisions from this):
+${JSON.stringify(veoData, null, 2)}
+
+VIDEO URL: ${videoUrl || '(video still rendering — use empty string for VIDEO_URL constant)'}
+
+MANDATORY:
+1. heroJSX — fullscreen video background (VIDEO_URL = "${videoUrl || ''}"). Overlay + content on top. Real headline/CTA specific to ${veoData.business_type ?? 'this business'}.
+2. sectionsJSX — 2-3 sections appropriate for ${veoData.business_type ?? 'this business'}. Real content, NOT generic SaaS cards.
+3. Colors — use EXACTLY: primary ${primary}, secondary ${secondary}, accent ${accent}, background ${bg}
+4. All components must be production-ready, import framer-motion, and use Tailwind + inline styles.
+
+Return ONLY the JSON.`
+
+  try {
+    const raw = await generateWithModel(plan, SYSTEM, USER)
+    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    const result = JSON.parse(clean)
+
+    res.json({
+      site: {
+        heroJSX:     result.heroJSX,
+        sectionsJSX: result.sectionsJSX,
+        navbarJSX:   result.navbarJSX,
+        footerJSX:   result.footerJSX,
+        appJSX:      result.appJSX,
+        indexCss:    result.indexCss,
+        websiteName: result.websiteName ?? veoData.website_name ?? 'Site',
+        videoUrl:    videoUrl ?? '',
+        palette:     { primary, secondary, accent, bg },
+      },
+      plan,
+    })
+  } catch (err) {
+    console.error('[generate-video-site]', err.message)
     res.status(500).json({ error: err.message })
   }
 })
@@ -916,6 +1129,253 @@ app.get('/api/video-proxy', async (req, res) => {
   } catch (err) {
     console.error('[video-proxy]', err.message)
     if (!res.headersSent) res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── Generate Storyboard (Pipeline Step 1) ────────────────────────────────────
+// Takes { prompt }, returns { storyboard: { veo_prompt, storyboard_scenes[], design_spec } }
+app.post('/api/generate-storyboard', async (req, res) => {
+  const { prompt } = req.body
+  if (!prompt?.trim()) return res.status(400).json({ error: 'prompt is required' })
+
+  const credits = await resolveUserCredits(req.headers.authorization)
+  if (credits && !credits.can_build) {
+    return res.status(402).json({
+      error: 'Build limit reached', code: 'LIMIT_REACHED',
+      plan: credits.plan, used: credits.builds_used, limit: credits.builds_limit,
+    })
+  }
+  const plan = credits?.plan ?? 'free'
+
+  const SYSTEM = `You are a world-class creative director and cinematic designer for AI-generated websites.
+Your job is to design a creative storyboard and Veo 2 video prompt for a website concept.
+
+OUTPUT RULE: Return ONLY valid JSON — no markdown, no code fences, no extra text.
+
+SCENE TYPE RULES — pick the ONE most relevant scene_type from this list based on industry/context:
+- "web"     → tech, SaaS, blockchain, developer tools, network, API
+- "ar"      → AR/VR/XR, spatial computing, metaverse, goggles, immersive
+- "hand"    → health, biometrics, touch, accessibility, human interface
+- "robot"   → robotics, automation, manufacturing, industrial, AI hardware
+- "galaxy"  → space, cosmos, astronomy, star, universe, satellite
+- "wave"    → ocean, audio, music frequency, fluid dynamics, water
+- "music"   → music, DJ, streaming, podcast, concert, sound
+- "city"    → real estate, urban, architecture, smart city, property
+- "crystal" → luxury, jewelry, fashion, gem, premium, high-end
+- "dna"     → biotech, pharma, healthcare, genetics, lab, research
+- "neural"  → AI, machine learning, neural network, LLM, data science
+- "planet"  → global, international, climate, earth, geography
+- "chart"   → fintech, analytics, finance, data, dashboard, trading
+- "abstract"→ creative agency, art, tattoo, design studio, experimental
+
+JSON SCHEMA:
+{
+  "storyboard": {
+    "veo_prompt": "<500+ word cinematic description for Veo 2 — include camera movements, lighting, 3D elements, color grading, mood>",
+    "scene_type": "<one of the 14 scene types above>",
+    "storyboard_scenes": [
+      {
+        "scene_index": 1,
+        "time_range": "0:00-0:05",
+        "website_section": "Hero",
+        "visuals": "<detailed visual description of what appears on screen>",
+        "camera_movement": "<specific camera motion — dolly, pan, orbit, zoom, etc.>",
+        "lighting": "<lighting description>",
+        "typography": "<how text appears — font feel, size, animation>",
+        "colors": ["#hex1", "#hex2"],
+        "3d_elements": ["<element 1>", "<element 2>"]
+      }
+    ],
+    "design_spec": {
+      "color_palette": {
+        "primary": "#hex",
+        "secondary": "#hex",
+        "accent": "#hex",
+        "background": "#hex"
+      },
+      "typography": {
+        "heading": "<font style description>",
+        "body": "<font style description>"
+      },
+      "sections": ["Hero", "Features", "About", "Pricing", "Footer"],
+      "business_type": "<industry/business type>",
+      "design_style": "<visual style — e.g. Cyberpunk, Minimal Luxury, Neo Futurism>"
+    }
+  }
+}`
+
+  const USER = `Create a creative storyboard and Veo 2 cinematic video prompt for this website idea:
+"${prompt}"
+
+Requirements:
+- veo_prompt: Minimum 500 words. Describe the full cinematic 3D website preview video. Include: opening shot, section transitions, 3D objects, lighting, camera paths, color grading, mood, and closing shot. Make it feel like a AAA game cinematic trailer reimagined as a website preview.
+- storyboard_scenes: 5–8 scenes covering different website sections (Hero, Features, Pricing, Testimonials, CTA, Footer, etc.)
+- scene_type: pick the SINGLE most relevant scene_type for this industry
+- design_spec: define the visual identity (colors, typography feel, sections list, design style)
+- All colors must be specific hex codes that fit the brand/industry
+
+Return ONLY the JSON.`
+
+  try {
+    const raw = await generateWithModel(plan, SYSTEM, USER)
+    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    const storyboard = JSON.parse(clean).storyboard ?? JSON.parse(clean)
+    res.json({ storyboard })
+  } catch (err) {
+    console.error('[generate-storyboard]', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── Vision Analysis (Pipeline Step 4) ───────────────────────────────────────
+// Takes { videoUrl, storyboard }, returns { websiteBlueprint } derived from storyboard + AI
+app.post('/api/vision-analysis', async (req, res) => {
+  const { videoUrl, storyboard } = req.body
+  if (!storyboard) return res.status(400).json({ error: 'storyboard is required' })
+
+  const credits = await resolveUserCredits(req.headers.authorization)
+  const plan = credits?.plan ?? 'free'
+
+  const industry = storyboard.design_spec?.business_type ?? 'general'
+  const designStyle = storyboard.design_spec?.design_style ?? 'Modern'
+  const palette = storyboard.design_spec?.color_palette ?? {}
+  const sceneType = storyboard.scene_type ?? 'abstract'
+  const { layout } = getVariation(classifyIndustry(industry))
+
+  const SYSTEM = `You are Getartifact — a world-class AI creative director and React developer.
+You receive a website storyboard and derive a complete, render-ready website blueprint from it.
+
+OUTPUT RULE: Return ONLY valid JSON — no markdown, no code fences, no extra text.
+
+JSON SCHEMA (follow exactly):
+{
+  "creative_concept": {
+    "website_name": "",
+    "business_type": "",
+    "target_audience": "",
+    "design_big_idea": "",
+    "why_this_design_fits": "",
+    "layout_archetype": "",
+    "visual_signature": "",
+    "diversity_score": { "layout": 95, "color": 95, "animation": 95, "typography": 95, "component_order": 95, "3d_scene": 95 },
+    "must_not_look_like": []
+  },
+  "design_system": {
+    "color_palette": {
+      "primary": "#hex",
+      "secondary": "#hex",
+      "accent": "#hex",
+      "background": "#hex",
+      "surface": "#hex",
+      "text": "#hex",
+      "palette_style": ""
+    },
+    "typography": {
+      "heading_font": "",
+      "body_font": "",
+      "type_style": "",
+      "heading_weight": "",
+      "heading_size_hero": ""
+    },
+    "ui_style": {
+      "navigation_style": "",
+      "hero_type": "",
+      "button_style": "",
+      "card_style": "",
+      "section_style": "",
+      "background_style": "",
+      "cursor_style": "",
+      "scroll_experience": "",
+      "footer_style": ""
+    },
+    "animation": {
+      "dominant_style": "",
+      "scroll_trigger": "",
+      "hover_effect": "",
+      "page_transition": "",
+      "micro_interactions": []
+    }
+  },
+  "cinematic_3d_scene": {
+    "scene_name": "",
+    "scene_purpose": "",
+    "scene_type": "",
+    "main_3d_subject": "",
+    "supporting_objects": [],
+    "environment": "",
+    "materials": [],
+    "lighting": "",
+    "camera_motion": "",
+    "animation_loop": "",
+    "user_interaction": "",
+    "appears_in_section": "hero",
+    "three_js_components": [],
+    "implementation_description": ""
+  },
+  "hero": {
+    "layout": "",
+    "headline": "",
+    "subheadline": "",
+    "primary_cta": "",
+    "secondary_cta": "",
+    "3d_integration": "",
+    "animation_style": "",
+    "background_treatment": ""
+  },
+  "sections": [
+    {
+      "id": "",
+      "type": "",
+      "title": "",
+      "subtitle": "",
+      "layout": "",
+      "content": [],
+      "visual_treatment": "",
+      "animation": "",
+      "3d_element": "",
+      "composition": ""
+    }
+  ],
+  "pages": [
+    { "name": "Home", "path": "/", "purpose": "", "unique_layout": "", "sections": [] }
+  ],
+  "code_generation_rules": {
+    "hero_component": "Custom hero matching hero.layout and hero.animation_style.",
+    "three_scene_component": "Custom React Three Fiber scene from cinematic_3d_scene.",
+    "layout_rule": "Every section uses the selected layout_archetype and business context.",
+    "content_rule": "All copy specific to this business.",
+    "scroll_rule": "Implement scroll_experience from design_system.ui_style.",
+    "animation_rule": "Apply animation.dominant_style throughout.",
+    "anti_template_rule": "If only colors, name, and text changed from a generic template, this is a FAILURE."
+  }
+}`
+
+  const USER = `Analyze this website storyboard and produce a complete website blueprint.
+
+STORYBOARD INPUT:
+${JSON.stringify(storyboard, null, 2)}
+
+REQUIREMENTS:
+- Use the storyboard's veo_prompt and storyboard_scenes to deeply understand the visual intent
+- design_style: "${designStyle}"
+- layout_archetype: "${layout}"
+- scene_type: "${sceneType}" (MUST match exactly — this drives 3D scene code generation)
+- Colors: primary ${palette.primary ?? '#6366f1'} | secondary ${palette.secondary ?? '#8b5cf6'} | accent ${palette.accent ?? '#06b6d4'} | background ${palette.background ?? '#0a0a14'}
+- sections: include these sections from the storyboard: ${JSON.stringify(storyboard.design_spec?.sections ?? ['Hero', 'Features', 'About', 'CTA', 'Footer'])}
+- Generate specific, real content for this exact business — never generic placeholder text
+- Derive the website_name from the storyboard context
+- All hex colors must be specific and match the brand
+
+Return ONLY the JSON.`
+
+  try {
+    const raw = await generateWithModel(plan, SYSTEM, USER)
+    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    const websiteBlueprint = JSON.parse(clean)
+    res.json({ websiteBlueprint })
+  } catch (err) {
+    console.error('[vision-analysis]', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 

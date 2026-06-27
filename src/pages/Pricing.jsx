@@ -10,8 +10,10 @@
  * - 3D:         CSS orbital rings (keep page lightweight, no Canvas)
  */
 
+"use client"
+
 import { useState, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from '@lib/router-shim'
 import { motion, AnimatePresence } from 'framer-motion'
 import GlassCard from '@components/ui/GlassCard'
 import Badge from '@components/ui/Badge'

@@ -42,7 +42,7 @@ export default function CodeAndPreview() {
     </div>
   )
 
-  const previewData = websiteBlueprint ?? buildFallbackPreview(blueprint)
+  const previewData = websiteBlueprint ?? buildFromVeoData(blueprint) ?? buildFallbackPreview(blueprint)
 
   const handleCopy = async () => {
     await copyToClipboard(JSON.stringify(previewData, null, 2))
@@ -213,6 +213,102 @@ export default function CodeAndPreview() {
   )
 }
 
+// ─── Build preview from video-first (veoData) blueprint shape ────────────────
+
+function buildFromVeoData(bp) {
+  const veo = bp?.veoData
+  if (!veo) return null
+
+  const palette = veo.color_palette ?? []
+  const primary   = palette[0] ?? '#6366f1'
+  const secondary = palette[1] ?? '#a78bfa'
+  const accent    = palette[2] ?? '#f59e0b'
+  const bg        = palette[3] ?? '#0a0a0f'
+
+  // Parse typography hint e.g. "Syne / Inter"
+  const typoHints = (veo.typography ?? '').split('/')
+  const headingFont = typoHints[0]?.trim() || 'Syne'
+  const bodyFont    = typoHints[1]?.trim() || 'Inter'
+
+  const businessType = (veo.business_type ?? '').toLowerCase()
+
+  // Industry-specific nav links
+  const navLinks =
+    /restaurant|food|dining/.test(businessType) ? ['Menu', 'About', 'Reservations', 'Gallery'] :
+    /gaming|esport/.test(businessType)           ? ['Games', 'Tournaments', 'Leaderboard', 'Store'] :
+    /fashion|luxury/.test(businessType)          ? ['Collections', 'Lookbook', 'About', 'Store'] :
+    /fitness|gym/.test(businessType)             ? ['Programs', 'Trainers', 'Schedule', 'Pricing'] :
+    /music|event/.test(businessType)             ? ['Shows', 'Artists', 'Music', 'Tickets'] :
+    /finance|crypto/.test(businessType)          ? ['Products', 'Markets', 'Dashboard', 'About'] :
+    /travel|hotel/.test(businessType)            ? ['Destinations', 'Hotels', 'Experiences', 'Book'] :
+                                                   ['Product', 'Pricing', 'Docs', 'Blog']
+
+  // Extract hero headline from the veo_prompt
+  const promptText = veo.veo_prompt ?? ''
+  const headlineMatch = promptText.match(/headline[^"]*"([^"]{10,60})"/i)
+  const headline = headlineMatch?.[1] ?? veo.website_name ?? 'A New Experience'
+
+  return {
+    website_name:  veo.website_name ?? 'Brand',
+    business_type: veo.business_type ?? 'Platform',
+    color_palette: { primary, secondary, accent, background: bg, text: isLightBg(bg) ? '#111' : '#f0f0f0' },
+    typography:    { heading_font: headingFont, body_font: bodyFont },
+    navbar:        { logo: veo.website_name ?? 'Brand', links: navLinks },
+    hero: {
+      headline,
+      subheadline:  `The future of ${veo.business_type ?? 'your industry'}.`,
+      cta_primary:  'Get Started',
+      cta_secondary: 'Watch Demo',
+      background_type: 'gradient_mesh',
+      animation: (veo.motion_effects?.[0] ?? 'particle_float'),
+      three_d_object: { type: veo['3d_elements']?.[0] ?? 'floating-sphere', material: 'glass', animation: 'slow_rotation' },
+    },
+    sections: [
+      {
+        id: 'features', type: 'features',
+        title: `Why ${veo.website_name ?? 'Us'}`,
+        subtitle: veo.brand_personality ?? 'Built different.',
+        content: [
+          { icon: '⚡', title: 'Instant Performance',    description: 'Sub-100ms response times, globally distributed infrastructure.' },
+          { icon: '🎯', title: 'Precision by Design',    description: 'Every detail crafted with intention and deep domain expertise.' },
+          { icon: '🔒', title: 'Enterprise Security',    description: 'SOC2 Type II certified, end-to-end encrypted.' },
+          { icon: '🌍', title: 'Global Scale',           description: '12 regions, 99.99% SLA, automatic failover.' },
+          { icon: '🤖', title: 'AI-Powered',             description: 'Intelligent automation that adapts to your workflow.' },
+          { icon: '📊', title: 'Real-Time Analytics',    description: 'Live dashboards with customisable KPIs and reports.' },
+        ],
+        animation: 'slide_up',
+        three_d_element: { type: '', material: '', animation: '' },
+      },
+      {
+        id: 'stats', type: 'stats',
+        title: 'By the Numbers',
+        subtitle: '',
+        content: [
+          { value: '2.4M+', label: 'Active Users' },
+          { value: '99.9%', label: 'Uptime SLA' },
+          { value: '150+', label: 'Countries' },
+          { value: '<10ms', label: 'Avg. Latency' },
+        ],
+        animation: 'count_up',
+        three_d_element: { type: '', material: '', animation: '' },
+      },
+    ],
+    footer: {
+      tagline: `The future of ${veo.business_type ?? 'everything'}.`,
+      text:    `© 2026 ${veo.website_name ?? 'Brand'}. All rights reserved.`,
+      links:   ['Privacy', 'Terms', 'Contact'],
+    },
+  }
+}
+
+function isLightBg(hex) {
+  const h = (hex ?? '#0a0a14').replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128
+}
+
 // ─── Build a preview-compatible object from the architecture blueprint ─────────
 
 function buildFallbackPreview(bp) {
@@ -247,15 +343,30 @@ function buildFallbackPreview(bp) {
       animation:       'particle_float',
       three_d_object:  { type: 'neural_network', material: 'glass', animation: 'slow_rotation' },
     },
-    sections: bp.pages?.[0]?.sections?.slice(0, 4).map(s => ({
-      id:       s.id,
-      type:     mapSectionType(s.id),
-      title:    s.content?.heading ?? s.name,
-      subtitle: s.purpose ?? '',
-      content:  generateSectionContent(s.id),
-      animation: s.animation ?? 'slide_up',
-      three_d_element: { type: '', material: '', animation: '' },
-    })) ?? [],
+    sections: (bp.pages?.[0]?.sections ?? []).slice(0, 4).map(s => {
+      const id = s?.id ?? s?.type ?? s?.name ?? ''
+      let extractedContent = null
+      if (s?.content) {
+        if (Array.isArray(s.content)) {
+          extractedContent = s.content
+        } else if (typeof s.content === 'object') {
+          if (Array.isArray(s.content.features)) extractedContent = s.content.features
+          else if (Array.isArray(s.content.items)) extractedContent = s.content.items
+          else if (Array.isArray(s.content.testimonials)) extractedContent = s.content.testimonials
+          else if (Array.isArray(s.content.stats)) extractedContent = s.content.stats
+          else if (s.content.title || s.content.heading || s.content.description) extractedContent = [s.content]
+        }
+      }
+      return {
+        id,
+        type:     mapSectionType(id),
+        title:    s?.content?.heading ?? s?.name ?? '',
+        subtitle: s?.purpose ?? '',
+        content:  extractedContent || generateSectionContent(id),
+        animation: s?.animation ?? 'slide_up',
+        three_d_element: { type: '', material: '', animation: '' },
+      }
+    }),
     footer: {
       tagline: c.tagline ?? '',
       text:    `© 2025 ${c.websiteName}. All rights reserved.`,
@@ -267,21 +378,23 @@ function buildFallbackPreview(bp) {
 }
 
 function mapSectionType(id) {
-  if (id.includes('feature')) return 'features'
-  if (id.includes('test'))    return 'testimonials'
-  if (id.includes('pric'))    return 'pricing'
-  if (id.includes('stat'))    return 'stats'
-  if (id.includes('cta'))     return 'cta'
-  if (id.includes('faq'))     return 'faq'
+  const s = (id ?? '').toLowerCase()
+  if (s.includes('feature')) return 'features'
+  if (s.includes('test'))    return 'testimonials'
+  if (s.includes('pric'))    return 'pricing'
+  if (s.includes('stat'))    return 'stats'
+  if (s.includes('cta'))     return 'cta'
+  if (s.includes('faq'))     return 'faq'
   return 'features'
 }
 
 function generateSectionContent(id) {
-  if (id.includes('stat')) return [
+  const s = (id ?? '').toLowerCase()
+  if (s.includes('stat')) return [
     { value: '50K+', label: 'Users' }, { value: '99.9%', label: 'Uptime' },
     { value: '10B+', label: 'API Calls' }, { value: '<10ms', label: 'Latency' },
   ]
-  if (id.includes('cta')) return [{ cta_primary: 'Get Started Free', cta_secondary: 'Learn More' }]
+  if (s.includes('cta')) return [{ cta_primary: 'Get Started Free', cta_secondary: 'Learn More' }]
   return [
     { icon: '⚡', title: 'Lightning Fast',      description: 'Built for speed and scale from the ground up.' },
     { icon: '🔒', title: 'Secure by Default',    description: 'End-to-end encryption with zero-trust architecture.' },

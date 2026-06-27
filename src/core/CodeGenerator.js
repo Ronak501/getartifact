@@ -18,7 +18,13 @@
  *   - 3D object is built from hero.three_d_object.type using real geometry
  *   - Section layout is industry-specific (never generic SaaS grid unless it's SaaS)
  *   - Same UI structure is never repeated across hero layouts
+ *
+ * When blueprint.creative_concept.layout_archetype matches Layout-A..J,
+ * MasterLayoutEngine is used for heroJSX, sceneJSX, and sampleSection,
+ * producing structurally unique code per archetype.
  */
+
+import { generateFromBlueprint as masterGenerate } from './MasterLayoutEngine.js'
 
 // ─── Data extractors ─────────────────────────────────────────────────────────
 
@@ -1642,15 +1648,45 @@ export default function FeaturesSection() {
 
 // ─── Master assembler ─────────────────────────────────────────────────────────
 
+/**
+ * Route hero/scene/section generation through MasterLayoutEngine when the
+ * blueprint specifies a Layout-A through Layout-J archetype (from the Master
+ * Prompt spec). Falls back to the legacy generators for older blueprints.
+ */
+function resolveComponents(bp) {
+  const archetype = bp?.creative_concept?.layout_archetype ?? ''
+  const isMasterLayout = /^Layout-[A-J]/i.test(archetype)
+
+  if (isMasterLayout) {
+    // Wrap blueprint to match MasterLayoutEngine's expected shape
+    const wrappedBP = {
+      creative_concept: bp.creative_concept,
+      design_system: bp.design_system ?? bp.websiteBlueprint?.design_system,
+      hero: bp.hero ?? bp.websiteBlueprint?.hero,
+      sections: bp.sections ?? bp.websiteBlueprint?.sections ?? [],
+      cinematic_3d_scene: bp.cinematic_3d_scene ?? bp.websiteBlueprint?.cinematic_3d_scene,
+    }
+    return masterGenerate(wrappedBP)
+  }
+
+  // Legacy path
+  return {
+    heroJSX:       generateHeroComponent(bp),
+    sceneJSX:      generateThreeSceneComponent(bp),
+    sampleSection: generateSectionComponent(bp),
+  }
+}
+
 export function generateAllCode(blueprint) {
   const bp = blueprint ?? {}
+  const { heroJSX, sceneJSX, sampleSection } = resolveComponents(bp)
 
   return {
     fileTree:      buildFileTree(bp),
     appJSX:        generateAppJSX(bp),
-    heroJSX:       generateHeroComponent(bp),
-    sceneJSX:      generateThreeSceneComponent(bp),
-    sampleSection: generateSectionComponent(bp),
+    heroJSX,
+    sceneJSX,
+    sampleSection,
     installCmd:    'npm install framer-motion @react-three/fiber @react-three/drei @react-three/postprocessing three react-router-dom',
     envSetup:      'cp .env.example .env\n# Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env',
   }
