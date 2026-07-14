@@ -1,16 +1,14 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { PHASES } from '@store/blueprintStore'
 import LoadingSpinner from './LoadingSpinner'
-
 const PHASE_STEPS = [
-  { id: PHASES.ANALYZING,  label: 'Reading',  num: 1 },
-  { id: PHASES.GENERATING, label: 'Planning', num: 2 },
-  { id: PHASES.WEBSITE,    label: 'Designing',num: 3 },
-  { id: PHASES.VEO,        label: 'Scripting',num: 4 },
-  { id: PHASES.BUILDING,   label: 'Building', num: 5 },
-  { id: PHASES.READY,      label: 'Done',     num: 6 },
+  { id: PHASES.STORYBOARD,      label: 'Planning',   num: 1 },
+  { id: PHASES.VIDEO_RENDERING, label: 'Scripting',  num: 2 },
+  { id: PHASES.USER_REVIEW,     label: 'Reviewing',  num: 3 },
+  { id: PHASES.VISION_ANALYSIS, label: 'Designing',  num: 4 },
+  { id: PHASES.CODE_GENERATION, label: 'Building',   num: 5 },
+  { id: PHASES.READY,           label: 'Done',       num: 6 },
 ]
-
 export default function PhaseIndicator({ phase, phaseLabel, phaseProgress }) {
   const activeIdx = PHASE_STEPS.findIndex(s => s.id === phase)
 

@@ -8,7 +8,11 @@ export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? ''
 
 export const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-export const googleAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? '' })
+export const googleAI = new GoogleGenAI({
+  vertexai: true,
+  project: process.env.GOOGLE_PROJECT_ID,
+  location: process.env.GOOGLE_LOCATION,
+})
 export const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export const gauth = new GoogleAuth({
@@ -61,16 +65,15 @@ export async function incrementBuildCount(sb, userId) {
     } catch { /* non-fatal */ }
   }
 }
-
 export const PLAN_MODEL = {
-  free: 'groq',
-  starter: 'groq',
+  free: 'gemini',
+  starter: 'gemini',
   growth: 'gemini',
   pro: 'claude',
 }
-
 export async function generateWithModel(plan, systemPrompt, userPrompt) {
   const model = PLAN_MODEL[plan] ?? 'groq'
+  const isJson = systemPrompt.toLowerCase().includes('json') || userPrompt.toLowerCase().includes('json')
 
   if (model === 'claude') {
     const msg = await claude.messages.create({
@@ -83,25 +86,34 @@ export async function generateWithModel(plan, systemPrompt, userPrompt) {
   }
 
   if (model === 'gemini') {
+    const config = {
+      systemInstruction: systemPrompt,
+      temperature: 0.9,
+      maxOutputTokens: 4096,
+    }
+    if (isJson) {
+      config.responseMimeType = 'application/json'
+    }
     const response = await googleAI.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: userPrompt,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.9,
-        maxOutputTokens: 4096,
-      },
+      config,
     })
     return response.text.trim()
   }
 
-  const completion = await groq.chat.completions.create({
+  const payload = {
     model: 'llama-3.3-70b-versatile',
     max_tokens: 4096,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-  })
+  }
+  if (isJson) {
+    payload.response_format = { type: 'json_object' }
+  }
+
+  const completion = await groq.chat.completions.create(payload)
   return completion.choices[0].message.content.trim()
 }

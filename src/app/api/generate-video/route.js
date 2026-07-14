@@ -13,10 +13,17 @@ export async function POST(req) {
     }
 
     const encoder = new TextEncoder()
+    let isClosed = false
+
     const stream = new ReadableStream({
       async start(controller) {
         const send = (data) => {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+          if (isClosed) return
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+          } catch (err) {
+            console.error('[generate-video] Send error:', err.message)
+          }
         }
 
         try {
@@ -51,27 +58,37 @@ export async function POST(req) {
 
           if (!operation.done) {
             send({ status: 'error', message: 'Video generation timed out after 10 minutes.' })
-            controller.close()
             return
           }
 
-          const samples = operation.response?.generatedSamples
+          const samples = operation.response?.generatedVideos
+            ?? operation.response?.generatedSamples
             ?? operation.result?.videos
             ?? []
 
           if (!samples.length) {
             send({ status: 'error', message: 'No video was returned from Veo 2.' })
-            controller.close()
             return
           }
 
           const videoUri = samples[0]?.video?.uri ?? samples[0]?.uri
+          console.log('\n======================================================')
+          console.log('[generate-video] SUCCESS! Video URI:', videoUri)
+          console.log('Proxy URL:', `/api/video-proxy?uri=${encodeURIComponent(videoUri)}`)
+          console.log('======================================================\n')
           send({ status: 'complete', videoUri, message: 'Video generated successfully!' })
         } catch (err) {
           console.error('[generate-video]', err.message)
           send({ status: 'error', message: err.message })
         } finally {
-          controller.close()
+          if (!isClosed) {
+            isClosed = true
+            try {
+              controller.close()
+            } catch (e) {
+              console.error('[generate-video] Error closing controller:', e.message)
+            }
+          }
         }
       }
     })

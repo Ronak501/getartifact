@@ -61,20 +61,22 @@ export function useAIBuilder() {
       })
 
       if (!videoRes.ok) throw new Error(`Video API failed: ${videoRes.status}`)
-
       const reader  = videoRes.body.getReader()
       const decoder = new TextDecoder()
       let finalUrl = null
+      let buffer = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (!line.startsWith('data: ')) continue
+          try {
             const data = JSON.parse(line.slice(6))
             if (data.status === 'processing') {
               setVideoProgress(data.progress || 0.5)
@@ -84,10 +86,11 @@ export function useAIBuilder() {
             } else if (data.status === 'error') {
               throw new Error(data.message || 'Video generation error')
             }
+          } catch (e) {
+            // ignore malformed lines
           }
         }
       }
-
       if (!finalUrl) throw new Error('Video generation completed but no video URL returned')
 
       // Convert Google Storage gs:// URI to our authenticated Proxy URL
@@ -102,13 +105,15 @@ export function useAIBuilder() {
       setError(err?.message ?? 'Generation failed')
     }
   }, [prompt, setPhase, setError, setVideoProgress, setVideoUrl])
-
   // ── Step 4 & 5: Vision AI Analysis & Code Generation (Post-Approval) ─────
   const approveAndBuild = useCallback(async () => {
     const state = useBlueprintStore.getState()
     const { videoUrl, storyboard, prompt: input } = state
-    if (!videoUrl || !storyboard) return
-
+    console.log('[approveAndBuild] Clicked. State:', { videoUrl, storyboard, input })
+    if (!videoUrl || !storyboard) {
+      console.warn('[approveAndBuild] Missing videoUrl or storyboard. Aborting.')
+      return
+    }
     const authHeader = useAuthStore.getState().session?.access_token
       ? `Bearer ${useAuthStore.getState().session.access_token}`
       : null

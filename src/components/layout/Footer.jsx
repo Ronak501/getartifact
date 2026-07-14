@@ -16,7 +16,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="font-display font-bold text-white/60 text-sm">
-            Tech<span className="text-brand-400">Sodh</span>
+            Get<span className="text-brand-400">Artifact</span>
           </span>
           <span className="text-white/20 text-sm">—</span>
           <span className="text-white/30 text-xs">AI-Powered Website Generation</span>

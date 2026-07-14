@@ -36,7 +36,9 @@ const PORT = process.env.PORT ?? 3001
 const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const googleAI = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY ?? '',
+  vertexai: true,
+  project: process.env.GOOGLE_PROJECT_ID,
+  location: process.env.GOOGLE_LOCATION,
 })
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -61,14 +63,12 @@ app.use(cors({
 app.use(express.json({ limit: '4mb' }))
 
 // ─── Plan config ──────────────────────────────────────────────────────────────
-
 const PLAN_MODEL = {
-  free: 'groq',
-  starter: 'groq',
+  free: 'gemini',
+  starter: 'gemini',
   growth: 'gemini',
   pro: 'claude',
 }
-
 const PLAN_LIMITS = { free: 3, starter: 10, growth: 50, pro: -1 }
 
 // ─── Auth + credit helpers ───────────────────────────────────────────────────
@@ -129,8 +129,10 @@ async function incrementBuildCount(sb, userId) {
 /**
  * Generate blueprint text using the model for the given plan.
  */
+
 async function generateWithModel(plan, systemPrompt, userPrompt) {
   const model = PLAN_MODEL[plan] ?? 'groq'
+  const isJson = systemPrompt.toLowerCase().includes('json') || userPrompt.toLowerCase().includes('json')
 
   if (model === 'claude') {
     const msg = await claude.messages.create({
@@ -143,27 +145,35 @@ async function generateWithModel(plan, systemPrompt, userPrompt) {
   }
 
   if (model === 'gemini') {
+    const config = {
+      systemInstruction: systemPrompt,
+      temperature: 0.9,
+      maxOutputTokens: 4096,
+    }
+    if (isJson) {
+      config.responseMimeType = 'application/json'
+    }
     const response = await googleAI.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: userPrompt,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.9,
-        maxOutputTokens: 4096,
-      },
+      config,
     })
     return response.text.trim()
   }
 
-  // Default: Groq
-  const completion = await groq.chat.completions.create({
+  const payload = {
     model: 'llama-3.3-70b-versatile',
     max_tokens: 4096,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-  })
+  }
+  if (isJson) {
+    payload.response_format = { type: 'json_object' }
+  }
+
+  const completion = await groq.chat.completions.create(payload)
   return completion.choices[0].message.content.trim()
 }
 
@@ -1067,7 +1077,8 @@ app.post('/api/generate-video', async (req, res) => {
     }
 
     // Extract video URI from completed operation
-    const samples = operation.response?.generatedSamples
+    const samples = operation.response?.generatedVideos
+      ?? operation.response?.generatedSamples
       ?? operation.result?.videos
       ?? []
 
@@ -1077,6 +1088,10 @@ app.post('/api/generate-video', async (req, res) => {
     }
 
     const videoUri = samples[0]?.video?.uri ?? samples[0]?.uri
+    console.log('\n======================================================')
+    console.log('[generate-video] SUCCESS! Video URI:', videoUri)
+    console.log('Proxy URL:', `/api/video-proxy?uri=${encodeURIComponent(videoUri)}`)
+    console.log('======================================================\n')
     send({ status: 'complete', videoUri, message: 'Video generated successfully!' })
   } catch (err) {
     console.error('[generate-video]', err.message)
