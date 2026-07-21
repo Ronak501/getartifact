@@ -154,8 +154,8 @@ export default function LivePreview({ blueprint, scale = 0.72 }) {
         hero={hero} palette={p} scale={scale} typography={typography}
         websiteName={websiteName} heroLayout={heroLayout} objType={objType} bgStyle={bgStyle} light={light}
       />
-      {sections?.map(s => (
-        <PreviewSection key={s.id} section={s} palette={p} scale={scale} light={light} />
+      {sections?.map((s, idx) => (
+        <PreviewSection key={s.id || `sec-${idx}`} section={s} palette={p} scale={scale} light={light} />
       ))}
       <PreviewFooter footer={footer} palette={p} scale={scale} websiteName={websiteName} light={light} />
     </div>
@@ -196,8 +196,8 @@ function PreviewNavbar({ navbar, palette, scale, typography, light }) {
       </div>
 
       <div style={{ display: 'flex', gap: 22 * scale }}>
-        {navbar?.links?.slice(0, 4).map(link => (
-          <span key={link} style={{
+        {navbar?.links?.slice(0, 4).map((link, idx) => (
+          <span key={link || idx} style={{
             fontSize: 13 * scale, color: palette.text + '80',
             cursor: 'pointer', fontWeight: 500,
           }}>{link}</span>

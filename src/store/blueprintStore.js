@@ -1,29 +1,26 @@
 /**
  * Zustand store — single source of truth for the builder pipeline state.
  *
- * Pipeline:
- *   idle → analyzing → generating → website → veo → building → ready
+ * Pipeline (new parallel flow):
+ *   idle → blueprint → [asset_3d + code_generation in parallel] → assembling → ready
  */
 
 import { create } from 'zustand'
 
 export const PHASES = {
   IDLE:            'idle',
-  STORYBOARD:      'storyboard',      // AI generates storyboard
-  VIDEO_RENDERING: 'video_rendering', // Veo rendering
-  USER_REVIEW:     'user_review',     // Gated review state
-  VISION_ANALYSIS: 'vision_analysis',  // Vision AI analysis
-  CODE_GENERATION: 'code_generation',  // Generating React/Next.js/R3F components
+  BLUEPRINT:       'blueprint',       // Step 1: generating website blueprint
+  ASSET_3D:        'asset_3d',        // Track A: Meshy 3D model generation
+  CODE_GENERATION: 'code_generation', // Track B: R3F + React code generation
+  ASSEMBLING:      'assembling',      // Step 3: merging tracks
   READY:           'ready',
   ERROR:           'error',
 }
 
 export const OUTPUT_TABS = {
   PREVIEW:   'preview',   // ← Code + Live Preview split pane
-  BLUEPRINT: 'blueprint', // ← Architecture JSON
-  VIDEO:     'video',     // ← Veo prompt + video player
-  SCRIPT:    'script',    // ← Storyboard
   CODE:      'code',      // ← React code output
+  BLUEPRINT: 'blueprint', // ← Architecture JSON
 }
 
 const useBlueprintStore = create((set, get) => ({
@@ -43,47 +40,38 @@ const useBlueprintStore = create((set, get) => ({
   setError: error => set({ phase: PHASES.ERROR, error }),
 
   // ── Generated output ──────────────────────────────────────────────────────
-  blueprint:        null,   // architecture blueprint (old schema)
+  blueprint:        null,   // full unified blueprint (final output)
   websiteBlueprint: null,   // render-ready website JSON (new schema)
   intent:           null,
-  veoData:          null,
-  storyboard:       null,   // Storyboard document
-  approved:         false,  // User review approval state
 
-  // ── Video-first output ────────────────────────────────────────────────────
-  videoUrl:      null,    // URL of the rendered Veo 2 video (null while rendering)
-  videoProgress: 0,       // 0–1 progress of background video render
-  videoSite:     null,    // { heroJSX, sectionsJSX, navbarJSX, ... } from video-site pipeline
+  // ── 3D Model Asset (Track A) ──────────────────────────────────────────────
+  modelAsset: null,   // { modelUrl, previewUrl, fallback, status }
+  setModelAsset: (asset) => set({ modelAsset: asset }),
 
-  setVideoUrl: (url) => {
-    set({ videoUrl: url })
-    // Inject the URL into the hero component if videoSite is already built
-    const vs = useBlueprintStore.getState().videoSite
-    if (vs?.heroJSX) {
-      set({ videoSite: { ...vs, heroJSX: vs.heroJSX.replace(/const VIDEO_URL = '[^']*'/, `const VIDEO_URL = '${url}'`) } })
-    }
+  // ── Track status (for parallel UI feedback) ───────────────────────────────
+  trackStatus: {
+    blueprint:  'idle',  // idle | running | done | error
+    asset3d:    'idle',  // idle | running | done | error | fallback
+    code:       'idle',  // idle | running | done | error
   },
-
-  setVideoProgress: (p) => set({ videoProgress: p }),
-
-  setVideoSite: (site) => set({ videoSite: site }),
+  setTrackStatus: (track, status) => set(s => ({
+    trackStatus: { ...s.trackStatus, [track]: status },
+  })),
 
   // Atomic finish — sets all final state in one call to avoid race conditions
-  finishGeneration: (blueprint, intent, websiteBlueprint, veoData) => {
-    const merged = { ...blueprint, websiteBlueprint, veoData }
+  finishGeneration: (blueprint, intent) => {
     const prev = get().history
     set({
-      blueprint:        merged,
-      websiteBlueprint,
-      veoData,
+      blueprint,
+      websiteBlueprint: blueprint.websiteBlueprint ?? null,
       intent,
       phase:            PHASES.READY,
       phaseProgress:    100,
-      phaseLabel:       'All done!',
+      phaseLabel:       'Your site is ready!',
       activeTab:        OUTPUT_TABS.PREVIEW,
       error:            null,
       history: [
-        { id: Date.now(), blueprint: merged, intent, prompt: get().prompt },
+        { id: Date.now(), blueprint, intent, prompt: get().prompt },
         ...prev,
       ].slice(0, 5),
     })
@@ -106,21 +94,20 @@ const useBlueprintStore = create((set, get) => ({
     if (bp) set({ blueprint: { ...bp, websiteBlueprint } })
   },
 
-  setVeoData: (veoData) => {
-    set({ veoData })
-    const bp = get().blueprint
-    if (bp) set({ blueprint: { ...bp, veoData } })
-  },
-
   clearBlueprint: () => set({
-    blueprint: null, websiteBlueprint: null, intent: null,
-    veoData: null, videoUrl: null, videoProgress: 0, videoSite: null,
-    storyboard: null, approved: false,
-    phase: PHASES.IDLE,
+    blueprint:        null,
+    websiteBlueprint: null,
+    intent:           null,
+    modelAsset:       null,
+    phase:            PHASES.IDLE,
+    phaseLabel:       '',
+    phaseProgress:    0,
+    error:            null,
+    trackStatus:      { blueprint: 'idle', asset3d: 'idle', code: 'idle' },
   }),
 
   // ── UI state ──────────────────────────────────────────────────────────────
-  activeTab:    OUTPUT_TABS.PREVIEW,   // default to preview
+  activeTab:    OUTPUT_TABS.PREVIEW,
   setActiveTab: tab => set({ activeTab: tab }),
 
   sidebarOpen:   true,
@@ -131,11 +118,7 @@ const useBlueprintStore = create((set, get) => ({
   loadFromHistory: entry => set({
     blueprint:        entry.blueprint,
     websiteBlueprint: entry.blueprint?.websiteBlueprint ?? null,
-    veoData:          entry.blueprint?.veoData ?? null,
-    videoSite:        entry.blueprint?.videoSite ?? null,
-    videoUrl:         entry.blueprint?.videoUrl ?? null,
-    storyboard:       entry.blueprint?.storyboard ?? null,
-    approved:         entry.blueprint?.approved ?? false,
+    modelAsset:       entry.blueprint?.modelAsset ?? null,
     intent:           entry.intent,
     prompt:           entry.prompt,
     phase:            PHASES.READY,

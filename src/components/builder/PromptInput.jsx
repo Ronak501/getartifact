@@ -16,7 +16,7 @@ export default function PromptInput() {
   const [focused, setFocused] = useState(false)
   const textareaRef = useRef(null)
 
-  const isRunning = [PHASES.STORYBOARD, PHASES.VIDEO_RENDERING, PHASES.VISION_ANALYSIS, PHASES.CODE_GENERATION].includes(phase)
+  const isRunning = [PHASES.BLUEPRINT, PHASES.ASSET_3D, PHASES.CODE_GENERATION, PHASES.ASSEMBLING].includes(phase)
 
   const handleSubmit = e => {
     e.preventDefault()

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { resolveUserCredits, generateWithModel } from '@lib/ai-clients'
+import { resolveUserCredits, generateWithModel, parseModelJson } from '@lib/ai-clients'
 
 const SYSTEM = `You are a high-performance Vision AI Agent specializing in web visual design and R3F 3D assets extraction.
 You analyze a generated preview video and its storyboard, and output a structured Website Blueprint JSON.
@@ -103,8 +103,18 @@ export async function POST(req) {
     const credits = await resolveUserCredits(authHeader)
     const plan = credits?.plan ?? 'free'
 
+    const isDataUri = typeof videoUrl === 'string' && videoUrl.startsWith('data:')
+    const videoReference = isDataUri
+      ? `INLINE_DATA_URI_OMITTED (too large for prompt tokens). Mime=${videoUrl.slice(5, videoUrl.indexOf(';') > -1 ? videoUrl.indexOf(';') : 30)} Length=${videoUrl.length}`
+      : videoUrl
+
     const USER = `Run Vision AI video frame analysis on the website preview video:
-URL: ${videoUrl}
+URL: ${videoReference}
+
+NOTE:
+${isDataUri
+    ? 'The video was returned as inline bytes and cannot be attached directly. Infer visual details from storyboard + video metadata.'
+    : 'Use the URL for direct frame-aware visual extraction.'}
 
 STORYBOARD CONTEXT:
 ${JSON.stringify(storyboard, null, 2)}
@@ -116,9 +126,42 @@ EXTRACT:
 - R3F components & custom 3D models detected in scene
 - Interactive animation states (scroll reveal, hovers, button glows)`
 
-    const raw = await generateWithModel(plan, SYSTEM, USER)
-    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    const websiteBlueprint = JSON.parse(clean)
+    const baseRaw = await generateWithModel(plan, SYSTEM, USER)
+    let websiteBlueprint = null
+    let lastParseError = null
+    let currentRaw = baseRaw
+
+    const repairSystem = `You repair malformed JSON.
+Return ONLY valid JSON. No markdown, no comments, no trailing commas.
+Escape all quotes inside string values correctly.`
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        websiteBlueprint = parseModelJson(currentRaw)
+        if (attempt > 1) {
+          console.warn(`[vision-analysis] JSON recovered on attempt ${attempt}`)
+        }
+        break
+      } catch (parseErr) {
+        lastParseError = parseErr
+        const repairUser = `The following model output is malformed JSON.
+Repair it into ONE valid JSON object and preserve semantics.
+
+Target schema:
+${SYSTEM}
+
+Malformed JSON:
+${currentRaw}`
+        currentRaw = await generateWithModel(plan, repairSystem, repairUser)
+      }
+    }
+
+    if (!websiteBlueprint) {
+      return NextResponse.json(
+        { error: `Vision Blueprint JSON parsing failed after retries: ${lastParseError?.message ?? 'unknown parse error'}` },
+        { status: 502 },
+      )
+    }
 
     return NextResponse.json({ websiteBlueprint })
   } catch (err) {

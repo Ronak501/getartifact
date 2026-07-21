@@ -1,6 +1,11 @@
-import { NextResponse } from 'next/server'
-import { resolveUserCredits, incrementBuildCount, generateWithModel } from '@lib/ai-clients'
-import { classifyIndustry, getVariation } from '@lib/blueprint-helpers'
+import { NextResponse } from "next/server";
+import {
+  resolveUserCredits,
+  incrementBuildCount,
+  generateWithModel,
+} from "@lib/ai-clients";
+import { classifyIndustry, getVariation } from "@lib/blueprint-helpers";
+import { buildLocalBlueprint } from "@core/BlueprintGenerator";
 
 const SYSTEM = `You are Getartifact — an award-winning AI Website Builder, UI/UX designer, creative director, and React developer.
 
@@ -47,6 +52,8 @@ JSON SCHEMA:
     "designStyle": "<Futuristic|Cyberpunk|Minimal|Luxury|Corporate|Startup|Gaming|Space|AI|Glassmorphism|Neumorphism>",
     "brandPersonality": ["", "", ""]
   },
+  "model_subject": "Short noun phrase (2-5 words) describing the hero 3D object to generate. Examples: 'futuristic wristwatch', 'luxury sports sneaker', 'AI microchip', 'geometric crystal gem', 'space rocket engine'. Must be a single concrete physical object that Meshy AI can sculpt.",
+  "model_style": "<realistic|cartoon|pbr|sculpture|voxel>  — choose the Meshy art style that best matches the brand",
   "palette": {
     "primary": "#hex", "secondary": "#hex", "accent": "#hex",
     "background": "#hex", "surface": "#hex", "text": "#hex", "textMuted": "#hex"
@@ -67,11 +74,6 @@ JSON SCHEMA:
       ]
     }
   ],
-  "videoScript": {
-    "duration": 55, "resolution": "1920x1080", "fps": 60, "style": "",
-    "scenes": [{ "id": 1, "name": "", "duration": 5, "camera": "", "elements": [], "description": "" }],
-    "aiVideoPrompt": ""
-  },
   "tech": {
     "framework": "React 18", "renderer": "React Three Fiber", "helpers": ["Drei", "Leva"],
     "animation": ["GSAP", "Framer Motion"], "styling": "Tailwind CSS v3", "state": "Zustand", "build": "Vite 5"
@@ -81,31 +83,37 @@ JSON SCHEMA:
     "sections": [], "threeD": ["ParticleField", "CameraRig"], "pages": []
   },
   "seo": { "title": "", "description": "", "keywords": [], "ogImage": "/og-image.jpg" }
-}`
+}`;
 
 export async function POST(req) {
   try {
-    const { prompt, intent } = await req.json()
+    const { prompt, intent } = await req.json();
     if (!prompt?.trim()) {
-      return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: "prompt is required" },
+        { status: 400 },
+      );
     }
 
-    const authHeader = req.headers.get('authorization')
-    const credits = await resolveUserCredits(authHeader)
+    const authHeader = req.headers.get("authorization");
+    const credits = await resolveUserCredits(authHeader);
 
     if (credits && !credits.can_build) {
-      return NextResponse.json({
-        error: 'Build limit reached',
-        code: 'LIMIT_REACHED',
-        plan: credits.plan,
-        used: credits.builds_used,
-        limit: credits.builds_limit,
-      }, { status: 402 })
+      return NextResponse.json(
+        {
+          error: "Build limit reached",
+          code: "LIMIT_REACHED",
+          plan: credits.plan,
+          used: credits.builds_used,
+          limit: credits.builds_limit,
+        },
+        { status: 402 },
+      );
     }
 
-    const plan = credits?.plan ?? 'free'
-    const industry = classifyIndustry(prompt)
-    const variation = getVariation(industry)
+    const plan = credits?.plan ?? "free";
+    const industry = classifyIndustry(prompt);
+    const variation = getVariation(industry);
 
     const USER = `Generate a complete website blueprint for:
 "${prompt}"
@@ -120,23 +128,53 @@ MANDATORY DESIGN SPECIFICATION — follow exactly:
 - Colors: background ${variation.palette.bg}, primary ${variation.palette.primary}, secondary ${variation.palette.secondary}, accent ${variation.palette.accent}
 
 Pre-analyzed intent:
-- Website Name: ${intent?.websiteName ?? 'unknown'}
-- Pages: ${intent?.pages?.join(', ') ?? 'Home, About, Services, Contact'}
+- Website Name: ${intent?.websiteName ?? "unknown"}
+- Pages: ${intent?.pages?.join(", ") ?? "Home, About, Services, Contact"}
 
-Generate 3-5 pages, 3-6 sections each, 7 video scenes (~55s total).
-Return ONLY the JSON blueprint object.`
+IMPORTANT: Set "model_subject" to a short 2-5 word noun phrase for the single hero 3D object that Meshy AI will sculpt (e.g. "futuristic wristwatch", "luxury sneaker", "AI microchip"). Make it match the brand and industry.
+Set "model_style" to one of: realistic, cartoon, pbr, sculpture, voxel.
 
-    const raw = await generateWithModel(plan, SYSTEM, USER)
-    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    const blueprint = JSON.parse(clean)
+Generate 3-5 pages, 3-6 sections each.
+Return ONLY the JSON blueprint object.`;
 
-    if (credits?.sb && credits.userId) {
-      incrementBuildCount(credits.sb, credits.userId)
+    const raw = await generateWithModel(plan, SYSTEM, USER);
+    const clean = raw
+      .replace(/^```(?:json)?\n?/, "")
+      .replace(/\n?```$/, "")
+      .trim();
+    let blueprint;
+
+    try {
+      blueprint = JSON.parse(clean);
+    } catch (parseErr) {
+      console.warn(
+        "[generate-blueprint] Model returned malformed JSON, using local fallback:",
+        parseErr.message,
+      );
+      blueprint = buildLocalBlueprint({
+        prompt,
+        websiteName: intent?.websiteName ?? prompt.slice(0, 40),
+        style: variation.style,
+        palette: variation.palette,
+        brandPersonality: intent?.brandPersonality ?? [
+          variation.style,
+          industry,
+          "custom",
+        ],
+        pages: intent?.pages?.length
+          ? intent.pages
+          : ["Home", "About", "Services", "Contact"],
+        threeObjects: [variation.threeDObj, variation.threeDObj2],
+      });
     }
 
-    return NextResponse.json({ blueprint, plan })
+    if (credits?.sb && credits.userId) {
+      incrementBuildCount(credits.sb, credits.userId);
+    }
+
+    return NextResponse.json({ blueprint, plan });
   } catch (err) {
-    console.error('[generate-blueprint]', err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error("[generate-blueprint]", err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

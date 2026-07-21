@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { resolveUserCredits, incrementBuildCount, generateWithModel } from '@lib/ai-clients'
-import { buildFileTree, generateAppJSX } from '@core/CodeGenerator.js'
+import { resolveUserCredits, incrementBuildCount, generateWithModel, parseModelJson } from '@lib/ai-clients'
+import { buildFileTree, generateAppJSX, generateAllCode } from '@core/CodeGenerator.js'
 
 const SYSTEM = `You are Getartifact — an award-winning senior creative director, 3D web designer, React developer, and Three.js motion designer.
 
@@ -12,7 +12,7 @@ Your task: write production-ready React + Framer Motion + React Three Fiber (R3F
 RICH MEDIA & UI RULES
 ════════════════════════════════════════
 - Along with the R3F 3D Canvas, incorporate rich UI elements, layout cards, illustrations, and actual photography where applicable.
-- For photos, images, and mockups, use high-quality Unsplash image URLs (e.g., `https://images.unsplash.com/photo-...` with appropriate visual queries).
+- For photos, images, and mockups, use high-quality Unsplash image URLs (e.g., 'https://images.unsplash.com/photo-...' with appropriate visual queries).
 - Do not make the website look like an empty 3D space. Combine the 3D subject with interactive grid layouts, modern typography cards, image galleries, and rich HTML interfaces.
 
 ════════════════════════════════════════
@@ -46,12 +46,13 @@ ANIMATION RULES (apply from blueprint.design_system.animation)
 - hover_effect: apply to every card, button, and interactive element.
 - micro_interactions: implement EVERY item listed in the array.
 - In sceneJSX, implement the animation_loop from cinematic_3d_scene inside useFrame.
-- Scroll-bound Movable Elements: Incorporate scroll-bound interactions (like parallax offsets, rotation shifts, or zoom scales) on UI cards and 3D subjects using Framer Motion's `useScroll` and `useTransform` so that elements physically slide, float, or morph as the user scrolls.
+- Scroll-bound Movable Elements: Incorporate scroll-bound interactions (like parallax offsets, rotation shifts, or zoom scales) on UI cards and 3D subjects using Framer Motion's 'useScroll' and 'useTransform' so that elements physically slide, float, or morph as the user scrolls.
 
 ════════════════════════════════════════
 3D SCENE RULES
 ════════════════════════════════════════
-- Do NOT use a single generic sphere, box, or torus knot as the main subject.
+- If a modelUrl is provided, use useGLTF(modelUrl) from '@react-three/drei' to load the user's custom generated 3D model as the main subject. Render <primitive object={scene} /> inside the group. Apply dramatic lighting, camera motion, and postprocessing around it.
+- If NO modelUrl is provided, Do NOT use a single generic sphere, box, or torus knot as the main subject.
 - You MUST construct the main 3D subject by nesting multiple geometries inside a <group>.
   - For example, if it's a 'neural-network', compose it of multiple small spheres connected by dynamic buffer line geometries that update their position or alpha in a useFrame loop.
   - If it's a 'planet', compose it of a central sphere, nested semi-transparent rotating ring meshes, and small satellite particles orbiting it.
@@ -71,7 +72,7 @@ JSON SCHEMA
 
 export async function POST(req) {
   try {
-    const { prompt, blueprint } = await req.json()
+    const { prompt, blueprint, modelUrl } = await req.json()
     if (!prompt?.trim()) {
       return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
     }
@@ -99,16 +100,57 @@ export async function POST(req) {
 BLUEPRINT:
 ${JSON.stringify(blueprint, null, 2)}
 
+${modelUrl ? `3D MODEL ASSET: A custom generated .glb model is available at this URL: "${modelUrl}"
+In sceneJSX, use: import { useGLTF } from '@react-three/drei' and load it with const { scene } = useGLTF('${modelUrl}'). Render <primitive object={scene} scale={1.5} /> as the hero subject inside the group. Add dramatic lighting around it.` : ''}
+
 STRICT CODE REQUIREMENTS:
 1. heroJSX — implement blueprint.hero.layout + blueprint.creative_concept.layout_archetype. Match the layout archetype code rules above EXACTLY. Use blueprint.hero.headline, subheadline, primary_cta, secondary_cta, animation_style. Import and render Cinematic3DScene inside a Canvas.
-2. sceneJSX — implement blueprint.cinematic_3d_scene fully. Build the main_3d_subject as a composed group (not a single sphere/torus). Apply cinematic lighting, camera_motion inside useFrame, and user_interaction.
+2. sceneJSX — implement blueprint.cinematic_3d_scene fully. ${modelUrl ? 'Load the provided .glb via useGLTF. Apply cinematic lighting, camera_motion inside useFrame, and user_interaction.' : 'Build the main_3d_subject as a composed group (not a single sphere/torus). Apply cinematic lighting, camera_motion inside useFrame, and user_interaction.'}
 3. sampleSection — implement blueprint.sections[1] (or the most interesting non-hero section). Use the section's layout, visual_treatment, animation, and composition fields. Stagger children with Framer Motion.
 
 Return ONLY the JSON object — no other text.`
 
-    const raw = await generateWithModel(plan, SYSTEM, USER)
-    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    const result = JSON.parse(clean)
+    let result = null
+    let lastParseError = null
+
+    try {
+      const baseRaw = await generateWithModel(plan, SYSTEM, USER)
+      let currentRaw = baseRaw
+
+      const repairSystem = `You repair malformed JSON.
+Return ONLY valid JSON. No markdown, no comments, no trailing commas.
+Escape all quotes inside string values correctly.`
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          result = parseModelJson(currentRaw)
+          if (attempt > 1) {
+            console.warn(`[generate-code] JSON recovered on attempt ${attempt}`)
+          }
+          break
+        } catch (parseErr) {
+          lastParseError = parseErr
+          const repairUser = `The following model output is malformed JSON.
+Repair it into ONE valid JSON object and preserve semantics.
+
+Target schema:
+${SYSTEM}
+
+Malformed JSON:
+${currentRaw}`
+          currentRaw = await generateWithModel(plan, repairSystem, repairUser)
+        }
+      }
+    } catch (llmErr) {
+      console.warn('[generate-code] AI code generation/repair failed, using local CodeGenerator fallback. Error:', llmErr.message)
+    }
+
+    // If AI generation or parsing failed, fall back to MasterLayoutEngine/local CodeGenerator
+    if (!result) {
+      console.log('[generate-code] Falling back to MasterLayoutEngine/local CodeGenerator...')
+      const fallbackCode = generateAllCode(blueprint)
+      return NextResponse.json({ code: fallbackCode })
+    }
 
     const code = {
       fileTree: buildFileTree(blueprint),
@@ -116,8 +158,9 @@ Return ONLY the JSON object — no other text.`
       heroJSX: result.heroJSX,
       sceneJSX: result.sceneJSX,
       sampleSection: result.sampleSection,
-      installCmd: 'npm install && npm run dev',
-      envSetup: 'cp .env.example .env\n# Add your ANTHROPIC_API_KEY / GEMINI_API_KEY to .env'
+      installCmd: 'npm install framer-motion @react-three/fiber @react-three/drei @react-three/postprocessing three react-router-dom',
+      envSetup: 'cp .env.example .env\n# Add your ANTHROPIC_API_KEY / GEMINI_API_KEY to .env',
+      modelUrl: modelUrl ?? null,
     }
 
     return NextResponse.json({ code })

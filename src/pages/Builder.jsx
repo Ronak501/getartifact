@@ -5,19 +5,18 @@ import { Link } from '@lib/router-shim'
 import { motion, AnimatePresence } from 'framer-motion'
 import useBlueprintStore, { OUTPUT_TABS, PHASES } from '@store/blueprintStore'
 import useAuthStore from '@store/authStore'
-import PromptInput     from '@components/builder/PromptInput'
-import CodeAndPreview  from '@components/builder/CodeAndPreview'
-import BlueprintViewer from '@components/builder/BlueprintViewer'
-import VideoScript     from '@components/builder/VideoScript'
-import VeoPanel        from '@components/builder/VeoPanel'
-import CodeOutput      from '@components/builder/CodeOutput'
-import VideoReviewGate from '@components/builder/VideoReviewGate'
-import GlassCard       from '@components/ui/GlassCard'
-import Badge           from '@components/ui/Badge'
+import PromptInput      from '@components/builder/PromptInput'
+import CodeAndPreview   from '@components/builder/CodeAndPreview'
+import BlueprintViewer  from '@components/builder/BlueprintViewer'
+import CodeOutput       from '@components/builder/CodeOutput'
+import ModelAssetPanel  from '@components/builder/ModelAssetPanel'
+import GlassCard        from '@components/ui/GlassCard'
+import Badge            from '@components/ui/Badge'
 
 const OUTPUT_TAB_LIST = [
-  { id: OUTPUT_TABS.PREVIEW, label: 'Live Preview', icon: '🖥️', desc: 'Interactive preview' },
-  { id: OUTPUT_TABS.CODE,    label: 'Source Code',  icon: '⚡',  desc: 'React + Tailwind' },
+  { id: OUTPUT_TABS.PREVIEW,   label: 'Live Preview', icon: '🖥️', desc: 'Interactive preview' },
+  { id: OUTPUT_TABS.CODE,      label: 'Source Code',  icon: '⚡',  desc: 'React + Three.js' },
+  { id: OUTPUT_TABS.BLUEPRINT, label: 'Blueprint',    icon: '📐',  desc: 'Design JSON' },
 ]
 
 export default function Builder() {
@@ -26,27 +25,20 @@ export default function Builder() {
   const [historyOpen, setHistoryOpen] = useState(false)
 
   return (
-    /*
-     * Layout:
-     *  h-screen flex-col → full viewport, no scroll bleed
-     *  ├─ h-16  spacer   → clears the fixed Navbar
-     *  ├─ sub-header     → sticky within flex, no overlap
-     *  └─ flex-1 overflow-y-auto → scrollable content area
-     */
     <div className="h-screen flex flex-col bg-[#0a0a14] overflow-hidden">
 
       {/* Spacer for fixed Navbar */}
       <div className="h-16 flex-shrink-0" />
 
-      {/* Sub-header ─ fixed within flex, never overlaps content */}
+      {/* Sub-header */}
       <div className="flex-shrink-0 border-b border-white/[0.05] bg-[#0a0a14]/90 backdrop-blur-sm z-30">
         <div className="max-w-[1700px] mx-auto px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
 
           {/* Title */}
           <div className="flex-shrink-0">
-            <h1 className="font-display text-base font-bold text-white leading-none">Getartifactact AI Website Builder</h1>
+            <h1 className="font-display text-base font-bold text-white leading-none">Getartifact AI Website Builder</h1>
             <p className="text-2xs text-white/20 mt-0.5">
-              Describe your idea — get a complete, deployable website
+              Prompt → Blueprint + 3D Model → React site, all in parallel
             </p>
           </div>
 
@@ -55,14 +47,14 @@ export default function Builder() {
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hidden flex-1 min-w-0">
               <Badge color="green" dot>{blueprint.concept?.websiteName}</Badge>
               <Badge color="purple">{blueprint.concept?.designStyle}</Badge>
-              {blueprint.websiteBlueprint && <Badge color="neon">Preview Ready</Badge>}
-              {blueprint.veoData          && <Badge color="blue">Veo Ready</Badge>}
+              {blueprint.websiteBlueprint  && <Badge color="neon">Preview Ready</Badge>}
+              {blueprint.modelAsset?.modelUrl && <Badge color="blue">3D Model ✓</Badge>}
+              {blueprint.modelAsset?.fallback && <Badge color="amber">Procedural 3D</Badge>}
             </div>
           )}
 
           {/* Right actions */}
           <div className="flex-shrink-0 flex items-center gap-3">
-            {/* Cloud save indicator */}
             {user && blueprint && (
               <span className="text-2xs text-green-400/60 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
@@ -102,6 +94,9 @@ export default function Builder() {
                 <PromptInput />
               </GlassCard>
 
+              {/* 3D Model Asset panel — appears during/after generation */}
+              <ModelAssetPanel />
+
               {/* Generation tips */}
               <GlassCard padding="p-4">
                 <p className="text-2xs text-white/25 uppercase tracking-widest mb-3 font-medium">Tips for Best Results</p>
@@ -109,7 +104,7 @@ export default function Builder() {
                   {[
                     { icon: '🎯', tip: 'Be specific about your industry and audience' },
                     { icon: '🎨', tip: 'Mention colors, mood, or visual style you want' },
-                    { icon: '📄', tip: 'List key pages or sections to include' },
+                    { icon: '🧊', tip: 'Name a specific 3D object e.g. "futuristic watch", "AI chip"' },
                     { icon: '✨', tip: 'Add unique features that make your site stand out' },
                   ].map(item => (
                     <div key={item.tip} className="flex items-start gap-2.5">
@@ -119,6 +114,9 @@ export default function Builder() {
                   ))}
                 </div>
               </GlassCard>
+
+              {/* Pipeline status card — shows during generation */}
+              <PipelineStatus />
 
               {/* History */}
               <AnimatePresence>
@@ -170,7 +168,7 @@ export default function Builder() {
                     ))}
                   </div>
 
-                  {/* Output panel — fixed height so inner h-full works */}
+                  {/* Output panel */}
                   <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm overflow-hidden"
                     style={{ height: 'calc(100vh - 16rem)' }}>
                     <AnimatePresence mode="wait">
@@ -183,19 +181,12 @@ export default function Builder() {
                         className="h-full p-4 overflow-hidden"
                       >
                         {activeTab === OUTPUT_TABS.PREVIEW   && <CodeAndPreview />}
-                        {activeTab === OUTPUT_TABS.BLUEPRINT && <BlueprintViewer />}
-                        {activeTab === OUTPUT_TABS.VIDEO     && <VeoPanel />}
-                        {activeTab === OUTPUT_TABS.SCRIPT    && <VideoScript />}
-                        {activeTab === OUTPUT_TABS.CODE      && <CodeOutput />}
+                        {activeTab === OUTPUT_TABS.BLUEPRINT  && <BlueprintViewer />}
+                        {activeTab === OUTPUT_TABS.CODE       && <CodeOutput />}
                       </motion.div>
                     </AnimatePresence>
                   </div>
                 </>
-              ) : (useBlueprintStore.getState().storyboard || [PHASES.STORYBOARD, PHASES.VIDEO_RENDERING, PHASES.USER_REVIEW].includes(phase)) ? (
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm overflow-hidden p-4 animate-fade-in"
-                  style={{ height: 'calc(100vh - 16rem)' }}>
-                  <VideoReviewGate />
-                </div>
               ) : (
                 <EmptyOutput phase={phase} />
               )}
@@ -208,15 +199,78 @@ export default function Builder() {
   )
 }
 
+/* ─── Pipeline status card ────────────────────────────────────────────────── */
+function PipelineStatus() {
+  const { phase, phaseLabel, phaseProgress, trackStatus } = useBlueprintStore()
+  const isActive = ![PHASES.IDLE, PHASES.READY, PHASES.ERROR].includes(phase)
+  if (!isActive) return null
+
+  const tracks = [
+    { key: 'blueprint', label: 'Blueprint', icon: '📐' },
+    { key: 'asset3d',   label: '3D Model',  icon: '🧊' },
+    { key: 'code',      label: 'Code',       icon: '⚡' },
+  ]
+
+  const statusColor = {
+    idle:     'text-white/20',
+    running:  'text-cyan-300 animate-pulse',
+    done:     'text-emerald-300',
+    fallback: 'text-amber-300',
+    error:    'text-red-300',
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="overflow-hidden"
+      >
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+          <p className="text-2xs text-white/25 uppercase tracking-widest mb-3 font-medium">Pipeline</p>
+
+          {/* Track status */}
+          <div className="flex flex-col gap-2 mb-3">
+            {tracks.map(t => {
+              const s = trackStatus?.[t.key] ?? 'idle'
+              return (
+                <div key={t.key} className="flex items-center gap-2">
+                  <span className="text-sm">{t.icon}</span>
+                  <span className="text-xs text-white/50 flex-1">{t.label}</span>
+                  <span className={`text-2xs font-medium capitalize ${statusColor[s] ?? 'text-white/20'}`}>
+                    {s === 'running' ? '●' : s === 'done' ? '✓' : s === 'fallback' ? '~' : s === 'error' ? '✕' : '○'}
+                    {' '}{s}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+            <motion.div
+              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-cyan-400"
+              animate={{ width: `${phaseProgress}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+          <p className="text-2xs text-white/30 mt-2">{phaseLabel}</p>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 /* ─── Empty / loading state ───────────────────────────────────────────────── */
 function EmptyOutput({ phase }) {
-  const isGen = [PHASES.STORYBOARD, PHASES.VIDEO_RENDERING, PHASES.VISION_ANALYSIS, PHASES.CODE_GENERATION].includes(phase)
+  const isGen = [PHASES.BLUEPRINT, PHASES.ASSET_3D, PHASES.CODE_GENERATION, PHASES.ASSEMBLING].includes(phase)
 
   const cfg = {
-    [PHASES.STORYBOARD]:      { icon: '🧠', label: 'Generating creative storyboard & visual specification...' },
-    [PHASES.VIDEO_RENDERING]: { icon: '🎬', label: 'Rendering cinematic 3D preview video via Google Veo 2...' },
-    [PHASES.VISION_ANALYSIS]: { icon: '👁️', label: 'Vision AI pipeline extracting blueprint elements...' },
-    [PHASES.CODE_GENERATION]: { icon: '⚡', label: 'Assembling custom Next.js & React Three Fiber components...' },
+    [PHASES.BLUEPRINT]:       { icon: '📐', label: 'Generating design blueprint & 3D concept...' },
+    [PHASES.ASSET_3D]:        { icon: '🧊', label: 'Sculpting 3D model (Meshy AI) & writing React components in parallel...' },
+    [PHASES.CODE_GENERATION]: { icon: '⚡', label: 'Assembling Next.js + React Three Fiber components...' },
+    [PHASES.ASSEMBLING]:      { icon: '🔧', label: 'Merging 3D asset + code into your site...' },
     [PHASES.ERROR]:           { icon: '❌', label: 'Something went wrong' },
   }[phase] ?? { icon: '🚀', label: 'Enter a prompt to begin' }
 
@@ -231,13 +285,23 @@ function EmptyOutput({ phase }) {
           {cfg.icon}
         </motion.div>
         <h3 className="font-display text-2xl font-bold text-white mb-3">
-          {isGen ? 'Generating...' : phase === PHASES.ERROR ? 'Error' : 'Ready to Build'}
+          {isGen ? 'Building your site...' : phase === PHASES.ERROR ? 'Error' : 'Ready to Build'}
         </h3>
         <p className="text-white/35 text-sm leading-relaxed">{cfg.label}</p>
 
+        {isGen && (
+          <div className="mt-6 flex items-center justify-center gap-4 text-xs text-white/30">
+            <span className="flex items-center gap-1">📐 Blueprint</span>
+            <span className="text-white/15">→</span>
+            <span className="flex items-center gap-1">🧊 + ⚡ Parallel</span>
+            <span className="text-white/15">→</span>
+            <span className="flex items-center gap-1">🚀 Ready</span>
+          </div>
+        )}
+
         {!isGen && phase === PHASES.IDLE && (
           <p className="text-xs text-white/20 mt-6">
-            Describe any website — your idea becomes a fully designed, deployable site.
+            Describe any website — get a 3D model + full React + Three.js site in one go.
           </p>
         )}
       </GlassCard>

@@ -6,15 +6,15 @@ import useAuthStore    from '@store/authStore'
 import useCreditStore  from '@store/creditStore'
 import { supabase }    from '@lib/supabase'
 
+/**
+ * useAIBuilder — orchestrates the new parallel dual-track pipeline:
+ *
+ *   Step 1 (sequential):  Blueprint generation
+ *   Step 2 (parallel):    Track A: 3D model (Meshy)  +  Track B: Code (LLM)
+ *   Step 3 (sequential):  Assemble → READY
+ */
 export function useAIBuilder() {
-  const {
-    prompt,
-    setPhase,
-    setVideoUrl,
-    setVideoProgress,
-    setVideoSite,
-    setError,
-  } = useBlueprintStore()
+  const { prompt, setPhase, setError, setModelAsset, setTrackStatus } = useBlueprintStore()
 
   const run = useCallback(async (customPrompt) => {
     const input = customPrompt ?? prompt
@@ -30,164 +30,157 @@ export function useAIBuilder() {
       ? `Bearer ${useAuthStore.getState().session.access_token}`
       : null
 
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(authHeader ? { Authorization: authHeader } : {}),
+    }
+
     try {
-      // ── Step 1: Generate Storyboard & Veo Prompt ───────────────────────────
-      setPhase(PHASES.STORYBOARD, 'Generating website storyboard and design layout...', 15)
-      
-      const sbRes = await fetch('/api/generate-storyboard', {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { Authorization: authHeader } : {}),
-        },
+      // ─────────────────────────────────────────────────────────────────────
+      // STEP 1 — Generate Blueprint (sequential, needed for both tracks)
+      // ─────────────────────────────────────────────────────────────────────
+      setPhase(PHASES.BLUEPRINT, 'Generating design blueprint & 3D concept...', 10)
+      useBlueprintStore.setState({ trackStatus: { blueprint: 'running', asset3d: 'idle', code: 'idle' } })
+
+      const bpRes = await fetch('/api/generate-blueprint', {
+        method: 'POST',
+        headers,
         body: JSON.stringify({ prompt: input }),
       })
-      if (!sbRes.ok) throw new Error(`Storyboard generation failed: ${sbRes.status}`)
-      const { storyboard } = await sbRes.json()
+      if (!bpRes.ok) throw new Error(`Blueprint generation failed: ${bpRes.status}`)
+      const { blueprint: rawBlueprint } = await bpRes.json()
+      useBlueprintStore.setState({ trackStatus: { blueprint: 'done', asset3d: 'idle', code: 'idle' } })
 
-      useBlueprintStore.setState({ storyboard, approved: false, videoUrl: null, videoSite: null })
+      // Extract 3D model hints from blueprint
+      const modelSubject = rawBlueprint.model_subject ?? rawBlueprint.concept?.websiteName ?? 'abstract 3D sculpture'
+      const modelStyle   = rawBlueprint.model_style ?? 'realistic'
 
-      // ── Step 2: Render Cinematic 3D Preview Video ─────────────────────────
-      setPhase(PHASES.VIDEO_RENDERING, 'Rendering 3D preview video (Veo 2)...', 40)
-      
-      const veoPrompt = storyboard.veo_prompt
-      const videoRes = await fetch('/api/generate-video', {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { Authorization: authHeader } : {}),
-        },
-        body: JSON.stringify({ veoPrompt }),
+      // ─────────────────────────────────────────────────────────────────────
+      // STEP 2 — Parallel: Track A (3D Asset) + Track B (Code)
+      // ─────────────────────────────────────────────────────────────────────
+      setPhase(PHASES.ASSET_3D, 'Generating 3D model asset & writing React components...', 30)
+      useBlueprintStore.setState({
+        trackStatus: { blueprint: 'done', asset3d: 'running', code: 'running' },
       })
 
-      if (!videoRes.ok) throw new Error(`Video API failed: ${videoRes.status}`)
-      const reader  = videoRes.body.getReader()
-      const decoder = new TextDecoder()
-      let finalUrl = null
-      let buffer = ''
+      const [assetResult, codeResult] = await Promise.allSettled([
+        // ── Track A: Meshy 3D Model ─────────────────────────────────────────
+        (async () => {
+          const res = await fetch('/api/generate-3d-model', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ modelPrompt: modelSubject, style: modelStyle }),
+          })
+          if (!res.ok) return { modelUrl: null, previewUrl: null, fallback: true, status: 'http_error' }
+          return res.json()
+        })(),
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
+        // ── Track B: Website Blueprint + Code ───────────────────────────────
+        (async () => {
+          // 2b-i: Generate rich visual website blueprint
+          setPhase(PHASES.CODE_GENERATION, 'Generating React + Three.js components...', 50)
 
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
+          const wbRes = await fetch('/api/generate-website-blueprint', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ prompt: input }),
+          }).catch(() => null)
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          try {
-            const data = JSON.parse(line.slice(6))
-            if (data.status === 'processing') {
-              setVideoProgress(data.progress || 0.5)
-              setPhase(PHASES.VIDEO_RENDERING, data.message || 'Rendering video...', Math.round(40 + (data.progress || 0) * 40))
-            } else if (data.status === 'complete') {
-              finalUrl = data.videoUri
-            } else if (data.status === 'error') {
-              throw new Error(data.message || 'Video generation error')
-            }
-          } catch (e) {
-            // ignore malformed lines
+          let websiteBlueprint = null
+          if (wbRes?.ok) {
+            const wbData = await wbRes.json()
+            websiteBlueprint = wbData.websiteBlueprint ?? null
           }
-        }
+
+          // Fall back to raw blueprint if the website-blueprint route fails
+          const blueprintForCode = websiteBlueprint ?? rawBlueprint
+
+          // 2b-ii: Generate code — NOTE: modelUrl not yet available here (parallel)
+          //        We pass null and let assembly re-call if needed, or accept procedural fallback.
+          const codeRes = await fetch('/api/generate-code', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              prompt: input,
+              blueprint: blueprintForCode,
+              // modelUrl is null here — if Meshy succeeds, it's stored in modelAsset
+              // and injected into the final blueprint for the code output panel
+            }),
+          })
+          if (!codeRes.ok) throw new Error(`Code generation failed: ${codeRes.status}`)
+          const codeData = await codeRes.json()
+          return { code: codeData.code, websiteBlueprint: blueprintForCode }
+        })(),
+      ])
+
+      // ─────────────────────────────────────────────────────────────────────
+      // STEP 3 — Assembly: merge Track A + Track B results
+      // ─────────────────────────────────────────────────────────────────────
+      setPhase(PHASES.ASSEMBLING, 'Assembling your site...', 90)
+
+      // Extract Track A result
+      const assetData = assetResult.status === 'fulfilled'
+        ? assetResult.value
+        : { modelUrl: null, previewUrl: null, fallback: true, status: 'rejected' }
+
+      setModelAsset(assetData)
+      useBlueprintStore.setState({
+        trackStatus: {
+          blueprint: 'done',
+          asset3d:   assetData.fallback ? 'fallback' : 'done',
+          code:      codeResult.status === 'fulfilled' ? 'done' : 'error',
+        },
+      })
+
+      if (codeResult.status === 'rejected') {
+        throw new Error(`Code generation failed: ${codeResult.reason?.message ?? 'unknown error'}`)
       }
-      if (!finalUrl) throw new Error('Video generation completed but no video URL returned')
 
-      // Convert Google Storage gs:// URI to our authenticated Proxy URL
-      const proxyUrl = `/api/video-proxy?uri=${encodeURIComponent(finalUrl)}`
-      setVideoUrl(proxyUrl)
+      const { code, websiteBlueprint } = codeResult.value
 
-      // ── Step 3: Enter User Review Gate ────────────────────────────────────
-      setPhase(PHASES.USER_REVIEW, 'Review your website 3D preview video to proceed', 100)
-      useBlueprintStore.setState({ activeTab: OUTPUT_TABS.VIDEO })
-
-    } catch (err) {
-      setError(err?.message ?? 'Generation failed')
-    }
-  }, [prompt, setPhase, setError, setVideoProgress, setVideoUrl])
-  // ── Step 4 & 5: Vision AI Analysis & Code Generation (Post-Approval) ─────
-  const approveAndBuild = useCallback(async () => {
-    const state = useBlueprintStore.getState()
-    const { videoUrl, storyboard, prompt: input } = state
-    console.log('[approveAndBuild] Clicked. State:', { videoUrl, storyboard, input })
-    if (!videoUrl || !storyboard) {
-      console.warn('[approveAndBuild] Missing videoUrl or storyboard. Aborting.')
-      return
-    }
-    const authHeader = useAuthStore.getState().session?.access_token
-      ? `Bearer ${useAuthStore.getState().session.access_token}`
-      : null
-
-    try {
-      useBlueprintStore.setState({ approved: true })
-
-      // ── Step 4: Vision AI Analysis on Video Frames ─────────────────────────
-      setPhase(PHASES.VISION_ANALYSIS, 'Analyzing video frames via Vision AI pipeline...', 25)
-
-      const visRes = await fetch('/api/vision-analysis', {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { Authorization: authHeader } : {}),
-        },
-        body: JSON.stringify({ videoUrl, storyboard }),
-      })
-      if (!visRes.ok) throw new Error(`Vision analysis failed: ${visRes.status}`)
-      const { websiteBlueprint } = await visRes.json()
-
-      useBlueprintStore.setState({ websiteBlueprint })
-
-      // ── Step 5: Generate custom Components & Code ────────────────────────
-      setPhase(PHASES.CODE_GENERATION, 'Generating Next.js components & assembling site...', 65)
-
-      const codeRes = await fetch('/api/generate-code', {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { Authorization: authHeader } : {}),
-        },
-        body: JSON.stringify({ prompt: input, blueprint: websiteBlueprint }),
-      })
-      if (!codeRes.ok) throw new Error(`Code generation failed: ${codeRes.status}`)
-      const { code } = await codeRes.json()
-
+      // Build the unified blueprint object
       const unifiedBlueprint = {
-        ...websiteBlueprint,
+        ...rawBlueprint,
+        websiteBlueprint,
+        modelAsset: assetData,
         tech: {
-          framework: 'Next.js 14', renderer: 'React Three Fiber', helpers: ['Drei'],
-          animation: ['Framer Motion', 'GSAP'], styling: 'Tailwind CSS v3', state: 'Zustand', build: 'Next'
+          framework: 'Next.js 14',
+          renderer:  'React Three Fiber',
+          helpers:   ['Drei', 'Leva'],
+          animation: ['Framer Motion', 'GSAP'],
+          styling:   'Tailwind CSS v3',
+          state:     'Zustand',
+          build:     'Next',
         },
         generatedCode: {
-          heroJSX:       code.heroJSX,
-          sceneJSX:      code.sceneJSX,
-          sampleSection: code.sampleSection,
-          appJSX:        code.appJSX,
-          fileTree:      code.fileTree,
-          installCmd:    code.installCmd,
+          heroJSX:       code?.heroJSX       ?? null,
+          sceneJSX:      code?.sceneJSX      ?? null,
+          sampleSection: code?.sampleSection ?? null,
+          appJSX:        code?.appJSX        ?? null,
+          fileTree:      code?.fileTree      ?? null,
+          installCmd:    code?.installCmd    ?? null,
+          modelUrl:      assetData.modelUrl  ?? null,
         },
       }
 
-      useBlueprintStore.setState({
-        blueprint:        unifiedBlueprint,
-        phase:            PHASES.READY,
-        phaseProgress:    100,
-        phaseLabel:       'Your site is built and live!',
-        activeTab:        OUTPUT_TABS.PREVIEW,
-      })
+      // ─────────────────────────────────────────────────────────────────────
+      // Finish — commit to store
+      // ─────────────────────────────────────────────────────────────────────
+      useBlueprintStore.getState().finishGeneration(unifiedBlueprint, null)
 
       // Cloud Save
       const user = useAuthStore.getState().user
       if (user) {
         supabase.from('blueprints').insert({
           user_id:             user.id,
-          name:                websiteBlueprint.creative_concept?.website_name ?? '3D Site',
+          name:                rawBlueprint.concept?.websiteName ?? '3D Site',
           prompt:              input,
-          design_style:        websiteBlueprint.creative_concept?.design_style ?? '3D Interactive',
-          color_primary:       websiteBlueprint.design_system?.color_palette?.primary ?? null,
-          color_secondary:     websiteBlueprint.design_system?.color_palette?.secondary ?? null,
-          color_accent:        websiteBlueprint.design_system?.color_palette?.accent ?? null,
+          design_style:        rawBlueprint.concept?.designStyle ?? '3D Interactive',
+          color_primary:       rawBlueprint.palette?.primary ?? null,
+          color_secondary:     rawBlueprint.palette?.secondary ?? null,
+          color_accent:        rawBlueprint.palette?.accent ?? null,
           blueprint_json:      unifiedBlueprint,
-          veo_data_json:       storyboard,
+          veo_data_json:       null,
           generated_code_json: unifiedBlueprint.generatedCode,
         }).then(({ error }) => {
           if (error) console.warn('[Supabase] Sync failed:', error.message)
@@ -197,11 +190,11 @@ export function useAIBuilder() {
       useCreditStore.getState().optimisticDecrement()
 
     } catch (err) {
-      setError(err?.message ?? 'Build pipeline failed')
+      setError(err?.message ?? 'Generation failed')
     } finally {
       useCreditStore.getState().fetchCredits()
     }
-  }, [setPhase, setError])
+  }, [prompt, setPhase, setError, setModelAsset, setTrackStatus])
 
-  return { run, approveAndBuild }
+  return { run }
 }

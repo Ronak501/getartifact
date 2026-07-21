@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { resolveUserCredits, generateWithModel } from '@lib/ai-clients'
+import { resolveUserCredits, generateWithModel, parseModelJson } from '@lib/ai-clients'
 import { classifyIndustry, getVariation } from '@lib/blueprint-helpers'
 
 const SYSTEM = `You are an elite Creative Director, UI/UX Architect, and cinematic Motion Designer. 
@@ -73,9 +73,49 @@ ASSIGNED SYSTEM PARAMETERS (incorporate these):
 - Primary 3D object: "${variation.threeDObj}"
 - Colors: background ${variation.palette.bg}, primary ${variation.palette.primary}, secondary ${variation.palette.secondary}, accent ${variation.palette.accent}`
 
-    const raw = await generateWithModel(plan, SYSTEM, USER)
-    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    const storyboard = JSON.parse(clean)
+    const repairSystem = `You repair malformed JSON.
+Return ONLY valid JSON. No markdown, no comments, no trailing commas.
+Escape all quotes inside string values correctly.`
+
+    const baseRaw = await generateWithModel(plan, SYSTEM, USER)
+    let storyboard = null
+    let lastParseError = null
+    let currentRaw = baseRaw
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        storyboard = parseModelJson(currentRaw)
+        if (attempt > 1) {
+          console.warn(`[generate-storyboard] JSON recovered on attempt ${attempt}`)
+        }
+        break
+      } catch (parseErr) {
+        lastParseError = parseErr
+        const repairUser = `The following model output is malformed JSON.
+Repair it into ONE valid JSON object and preserve semantics.
+
+Target schema:
+${SYSTEM}
+
+Malformed JSON:
+${currentRaw}`
+        currentRaw = await generateWithModel(plan, repairSystem, repairUser)
+      }
+    }
+
+    if (!storyboard) {
+      return NextResponse.json(
+        { error: `Storyboard JSON parsing failed after retries: ${lastParseError?.message ?? 'unknown parse error'}` },
+        { status: 502 },
+      )
+    }
+
+    if (!storyboard?.veo_prompt || !Array.isArray(storyboard?.storyboard_scenes)) {
+      return NextResponse.json(
+        { error: 'Storyboard generation returned incomplete data' },
+        { status: 502 },
+      )
+    }
 
     return NextResponse.json({ storyboard })
   } catch (err) {
