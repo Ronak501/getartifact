@@ -12,8 +12,8 @@ const FEATURED = PREBUILT_TEMPLATES.filter(t => FEATURED_IDS.includes(t.id)).sli
 
 const STEPS = [
   { num: '01', icon: '✍️', color: '#3d5eff', title: 'Describe your idea', desc: 'Type any business, app, or brand in plain English.' },
-  { num: '02', icon: '🎬', color: '#00d4ff', title: 'AI generates a video', desc: 'Veo 2 renders a cinematic website preview video unique to your prompt.' },
-  { num: '03', icon: '🚀', color: '#00ff88', title: 'Get deploy-ready code', desc: 'Download a complete React project with the video as hero background. npm install and go.' },
+  { num: '02', icon: '◫', color: '#00d4ff', title: 'Generate in parallel', desc: 'The asset track creates a .glb model while the scene track writes the layout, lighting, and motion.' },
+  { num: '03', icon: '↗', color: '#00ff88', title: 'Preview the assembled site', desc: 'The compiler injects the asset into a React Three Fiber project and opens a live sandbox preview.' },
 ]
 
 const LOGOS = ['Vercel', 'Supabase', 'Stripe', 'Anthropic', 'Google', 'OpenAI']
@@ -43,7 +43,7 @@ export default function Home() {
             color: '#7b9fff', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.05em',
           }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3d5eff', animation: 'pulse 2s infinite' }} />
-            Powered by Gemini Veo 2 · Claude · Groq
+            Parallel 3D asset + interactive code generation
           </span>
         </motion.div>
 
@@ -76,8 +76,8 @@ export default function Home() {
           transition={{ duration: 0.7, delay: 0.3 }}
           style={{ fontSize: 'clamp(1rem, 2vw, 1.2rem)', maxWidth: '480px', lineHeight: 1.7, marginBottom: '2.5rem' }}
         >
-          Create interactive websites with a single prompt.
-          <br />No coding. No design skills.
+          A clean pipeline for turning a product idea into a 3D asset,
+          <br />a React scene, and a live preview.
         </motion.p>
 
         {/* CTAs */}

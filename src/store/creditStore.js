@@ -15,8 +15,6 @@ const useCreditStore = create((set, get) => ({
   plan:         'free',
   builds_used:  0,
   builds_limit: 3,
-  video_used:   0,
-  video_limit:  0,
   can_build:    true,
   loading:      false,
   loaded:       false,
@@ -51,8 +49,6 @@ const useCreditStore = create((set, get) => ({
           plan:         data.plan         ?? 'free',
           builds_used:  data.builds_used  ?? 0,
           builds_limit: data.builds_limit ?? 3,
-          video_used:   data.video_used   ?? 0,
-          video_limit:  data.video_limit  ?? 0,
           can_build:    data.can_build    ?? true,
           loaded:       true,
         })
@@ -78,7 +74,7 @@ const useCreditStore = create((set, get) => ({
 
   reset: () => set({
     plan: 'free', builds_used: 0, builds_limit: 3,
-    video_used: 0, video_limit: 0, can_build: true, loaded: false,
+    can_build: true, loaded: false,
   }),
 }))
 

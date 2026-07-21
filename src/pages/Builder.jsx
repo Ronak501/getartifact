@@ -38,7 +38,7 @@ export default function Builder() {
           <div className="flex-shrink-0">
             <h1 className="font-display text-base font-bold text-white leading-none">Getartifact AI Website Builder</h1>
             <p className="text-2xs text-white/20 mt-0.5">
-              Prompt → Blueprint + 3D Model → React site, all in parallel
+              Prompt &rarr; 3D asset + scene code in parallel &rarr; assembled live site
             </p>
           </div>
 

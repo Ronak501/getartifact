@@ -14,8 +14,6 @@ export async function POST(req) {
     plan: credits.plan,
     builds_used: credits.builds_used,
     builds_limit: credits.builds_limit,
-    video_used: credits.video_used,
-    video_limit: credits.video_limit,
     can_build: credits.can_build,
   })
 }

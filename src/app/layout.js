@@ -3,7 +3,7 @@ import ClientLayout from './client-layout'
 
 export const metadata = {
   title: 'Getartifact AI Website Builder',
-  description: 'AI-powered 3D website builder: Prompt → Blueprint → React + Three.js Code',
+  description: 'AI-powered 3D website builder: prompt to 3D asset, code, and live preview.',
 }
 
 export default function RootLayout({ children }) {

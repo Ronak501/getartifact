@@ -1,7 +1,7 @@
 {
   "name": "ai-3d-website-builder",
   "version": "1.0.0",
-  "description": "AI-powered 3D website builder: Prompt → Blueprint → Veo Video → React + Three.js Code",
+  "description": "AI-powered 3D website builder: prompt to parallel asset and code generation to live React + Three.js preview",
   "type": "module",
   "scripts": {
     "dev": "next dev -p 3000",
