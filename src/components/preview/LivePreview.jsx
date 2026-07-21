@@ -10,6 +10,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
+import { Canvas, useFrame } from '@react-three/fiber'
 import PreviewSection from './PreviewSection'
 
 /* ─── CSS keyframes ────────────────────────────────────────────────────────── */
@@ -154,6 +155,7 @@ export default function LivePreview({ blueprint, scale = 0.72 }) {
         hero={hero} palette={p} scale={scale} typography={typography}
         websiteName={websiteName} heroLayout={heroLayout} objType={objType} bgStyle={bgStyle} light={light}
       />
+      <PreviewScrollChapter palette={p} scale={scale} objType={objType} websiteName={websiteName} />
       {sections?.map((s, idx) => (
         <PreviewSection key={s.id || `sec-${idx}`} section={s} palette={p} scale={scale} light={light} />
       ))}
@@ -271,7 +273,7 @@ function HeroSplit({ hero, palette, scale, typography, websiteName, objType, bgS
           transform: `translate(${-px * 0.5}px, ${-py * 0.4}px)`,
           transition: 'transform 0.1s ease-out',
         }}>
-        <ThreeDScene palette={palette} size={220 * scale} objType={objType} />
+        <GeneratedWebGLScene palette={palette} size={220 * scale} objType={objType} />
       </motion.div>
     </section>
   )
@@ -296,7 +298,7 @@ function HeroCentered({ hero, palette, scale, typography, websiteName, objType, 
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ delay: 0.1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         style={{ position: 'relative', zIndex: 10, marginBottom: 24 * scale }}>
-        <ThreeDScene palette={palette} size={160 * scale} objType={objType} />
+        <GeneratedWebGLScene palette={palette} size={160 * scale} objType={objType} />
       </motion.div>
 
       <div style={{ position: 'relative', zIndex: 10, maxWidth: 700 * scale }}>
@@ -379,7 +381,7 @@ function HeroMagazine({ hero, palette, scale, typography, websiteName, objType, 
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
           style={{ flexShrink: 0, alignSelf: 'center' }}>
-          <ThreeDScene palette={palette} size={200 * scale} objType={objType} />
+          <GeneratedWebGLScene palette={palette} size={200 * scale} objType={objType} />
         </motion.div>
       </div>
     </section>
@@ -458,7 +460,7 @@ function HeroMinimal({ hero, palette, scale, typography, websiteName, objType, b
             animate={{ opacity: 0.7 }}
             transition={{ delay: 0.5, duration: 1 }}
             style={{ flexShrink: 0, alignSelf: 'center', opacity: 0.6 }}>
-            <ThreeDScene palette={palette} size={130 * scale} objType={objType} />
+            <GeneratedWebGLScene palette={palette} size={130 * scale} objType={objType} />
           </motion.div>
         </div>
       </div>
@@ -646,6 +648,117 @@ function HeroBg({ palette, scale, bgStyle, light }) {
 }
 
 /* ─── 3D Scene dispatcher ─────────────────────────────────────────────────── */
+function GeneratedWebGLScene({ palette, size, objType }) {
+  return (
+    <div style={{ width: size, height: size, filter: `drop-shadow(0 0 ${size * 0.12}px ${palette.primary}88)` }}>
+      <Canvas camera={{ position: [0, 0, 5.4], fov: 46 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}>
+        <ambientLight intensity={0.42} />
+        <pointLight position={[4, 4, 5]} intensity={25} color={palette.primary} />
+        <pointLight position={[-4, -2, 3]} intensity={18} color={palette.secondary} />
+        <pointLight position={[0, -4, 2]} intensity={12} color={palette.accent} />
+        <GeneratedWebGLObject palette={palette} objType={objType} />
+      </Canvas>
+    </div>
+  )
+}
+
+function GeneratedWebGLObject({ palette, objType }) {
+  const groupRef = useRef(null)
+  const orbitRef = useRef(null)
+
+  useFrame(({ clock, pointer }) => {
+    const t = clock.elapsedTime
+    if (groupRef.current) {
+      groupRef.current.rotation.y = t * 0.38 + pointer.x * 0.35
+      groupRef.current.rotation.x = Math.sin(t * 0.55) * 0.18 + pointer.y * 0.18
+      groupRef.current.position.y = Math.sin(t * 1.1) * 0.18
+    }
+    if (orbitRef.current) orbitRef.current.rotation.z = -t * 0.55
+  })
+
+  const isCrystal = ['crystal', 'icosa', 'hologram'].includes(objType)
+  const isPlanet = objType === 'planet'
+  const isNeural = ['neural', 'particles', 'dna'].includes(objType)
+
+  return (
+    <group ref={groupRef}>
+      <mesh scale={isPlanet ? 1.35 : 1.12}>
+        {isCrystal ? <octahedronGeometry args={[1, 1]} /> : isNeural ? <icosahedronGeometry args={[1, 2]} /> : <torusKnotGeometry args={[0.82, 0.25, 160, 24]} />}
+        <meshPhysicalMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={0.52} metalness={0.72} roughness={0.16} transmission={isCrystal ? 0.32 : 0} transparent={isCrystal} opacity={0.92} wireframe={isNeural} />
+      </mesh>
+      <mesh rotation={[0.55, 0.2, 0]} scale={isPlanet ? 1.7 : 1.46}>
+        <torusGeometry args={[1, 0.035, 16, 96]} />
+        <meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={1.8} transparent opacity={0.82} />
+      </mesh>
+      <group ref={orbitRef}>
+        {[0, 1, 2, 3, 4, 5].map(index => {
+          const angle = (index / 6) * Math.PI * 2
+          return <mesh key={index} position={[Math.cos(angle) * 1.72, Math.sin(angle) * 1.72, Math.sin(angle * 2) * 0.45]} scale={0.09 + (index % 2) * 0.04}>
+            <sphereGeometry args={[1, 16, 16]} />
+            <meshStandardMaterial color={index % 2 ? palette.accent : palette.secondary} emissive={index % 2 ? palette.accent : palette.secondary} emissiveIntensity={2} />
+          </mesh>
+        })}
+      </group>
+      <mesh scale={0.34}>
+        <sphereGeometry args={[1, 32, 32]} />
+        <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={2.2} />
+      </mesh>
+    </group>
+  )
+}
+
+function ScrollDrivenWebGLScene({ palette, size, objType }) {
+  const hostRef = useRef(null)
+  const [progress, setProgress] = useState(0)
+  useEffect(() => {
+    const scroller = hostRef.current?.closest('[data-preview-scroll]')
+    if (!scroller) return undefined
+    const update = () => setProgress(scroller.scrollTop / Math.max(1, scroller.scrollHeight - scroller.clientHeight))
+    update()
+    scroller.addEventListener('scroll', update, { passive: true })
+    return () => scroller.removeEventListener('scroll', update)
+  }, [])
+  return <div ref={hostRef} style={{ width: size, height: size }}><Canvas camera={{ position: [0, 0, 5.4], fov: 46 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}><ambientLight intensity={0.42} /><pointLight position={[4, 4, 5]} intensity={25} color={palette.primary} /><pointLight position={[-4, -2, 3]} intensity={18} color={palette.secondary} /><pointLight position={[0, -4, 2]} intensity={12} color={palette.accent} /><ScrollReactiveObject palette={palette} objType={objType} progress={progress} /></Canvas></div>
+}
+
+function ScrollReactiveObject({ palette, objType, progress }) {
+  const groupRef = useRef(null)
+  const orbitRef = useRef(null)
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    if (groupRef.current) {
+      groupRef.current.rotation.y = t * 0.35 + progress * Math.PI * 4
+      groupRef.current.rotation.x = Math.sin(t * 0.5) * 0.12 + progress * 0.7
+      groupRef.current.position.x = Math.sin(progress * Math.PI * 2) * 0.9
+      groupRef.current.position.y = Math.cos(progress * Math.PI * 3) * 0.35
+      groupRef.current.scale.setScalar(0.9 + progress * 0.55)
+    }
+    if (orbitRef.current) orbitRef.current.rotation.z = t * 0.45 - progress * Math.PI * 6
+  })
+  const geometry = objType === 'planet' ? <sphereGeometry args={[1.15, 48, 48]} /> : objType === 'crystal' ? <octahedronGeometry args={[1.28, 1]} /> : <torusKnotGeometry args={[0.8, 0.22, 160, 24]} />
+  return <group ref={groupRef}><mesh>{geometry}<meshPhysicalMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={0.5} metalness={0.7} roughness={0.14} transmission={objType === 'crystal' ? 0.35 : 0} /></mesh><mesh rotation={[0.8, 0.2, 0]} scale={1.55}><torusGeometry args={[1, 0.035, 16, 96]} /><meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={2} /></mesh><group ref={orbitRef}>{Array.from({ length: 10 }, (_, index) => { const angle = (index / 10) * Math.PI * 2; return <mesh key={index} position={[Math.cos(angle) * 1.75, Math.sin(angle) * 1.75, Math.sin(angle * 3) * 0.45]} scale={0.06 + (index % 3) * 0.025}><sphereGeometry args={[1, 12, 12]} /><meshStandardMaterial color={index % 2 ? palette.accent : palette.secondary} emissive={index % 2 ? palette.accent : palette.secondary} emissiveIntensity={2} /></mesh> })}</group></group>
+}
+function PreviewScrollChapter({ palette, scale, objType, websiteName }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0.2, scale: 0.94 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ amount: 0.35 }}
+      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+      style={{ minHeight: 430 * scale, position: 'relative', overflow: 'hidden', display: 'grid', placeItems: 'center', padding: 34 * scale, background: `radial-gradient(circle at 50% 45%, ${palette.primary}35, ${palette.background} 68%)`, borderTop: `1px solid ${palette.primary}25`, borderBottom: `1px solid ${palette.primary}25` }}
+    >
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.18, backgroundImage: `linear-gradient(${palette.primary}20 1px, transparent 1px), linear-gradient(90deg, ${palette.primary}20 1px, transparent 1px)`, backgroundSize: `${28 * scale}px ${28 * scale}px` }} />
+      <motion.div whileInView={{ y: [20, 0], opacity: [0, 1] }} viewport={{ amount: 0.4 }} transition={{ duration: 0.8 }} style={{ position: 'relative', zIndex: 1, width: '100%', display: 'grid', gridTemplateColumns: '1fr 1.15fr', alignItems: 'center', gap: 28 * scale }}>
+        <div>
+          <div style={{ color: palette.secondary, fontSize: 10 * scale, fontWeight: 800, letterSpacing: '0.16em', marginBottom: 12 * scale }}>SCROLL CHAPTER 02</div>
+          <h2 style={{ margin: 0, color: palette.text, fontSize: 36 * scale, lineHeight: 1, fontFamily: 'Syne, sans-serif' }}>An object that evolves as the story unfolds.</h2>
+          <p style={{ margin: `${16 * scale}px 0 0`, color: palette.text + 'a8', fontSize: 14 * scale, lineHeight: 1.65 }}>This generated scene is live WebGL, continuously animated, and framed as part of the page’s scroll journey for {websiteName}.</p>
+        </div>
+        <div style={{ display: 'grid', placeItems: 'center', minHeight: 310 * scale }}><ScrollDrivenWebGLScene palette={palette} size={Math.min(350 * scale, 360)} objType={objType} /></div>
+      </motion.div>
+    </motion.section>
+  )
+}
 function ThreeDScene({ palette, size: s, objType }) {
   if (objType === 'crystal')   return <CrystalGem   palette={palette} s={s} />
   if (objType === 'neural')    return <NeuralGraph   palette={palette} s={s} />

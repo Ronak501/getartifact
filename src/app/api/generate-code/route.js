@@ -46,6 +46,7 @@ ANIMATION RULES (apply from blueprint.design_system.animation)
 - hover_effect: apply to every card, button, and interactive element.
 - micro_interactions: implement EVERY item listed in the array.
 - In sceneJSX, implement the animation_loop from cinematic_3d_scene inside useFrame.
+- REQUIRED: Build a scroll-driven WebGL story, not a static site with one 3D hero. Keep a Canvas active through at least three chapters and bind scroll progress to the main 3D group or camera: position, rotation, scale, and emissive/material values must change as the user scrolls.
 - Scroll-bound Movable Elements: Incorporate scroll-bound interactions (like parallax offsets, rotation shifts, or zoom scales) on UI cards and 3D subjects using Framer Motion's 'useScroll' and 'useTransform' so that elements physically slide, float, or morph as the user scrolls.
 
 ════════════════════════════════════════

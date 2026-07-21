@@ -191,7 +191,7 @@ export default function CodeAndPreview() {
                 </div>
 
                 {/* Rendered website */}
-                <div className="flex-1 overflow-auto scrollbar-hidden bg-[#050508]">
+                <div data-preview-scroll className="flex-1 overflow-auto scrollbar-hidden bg-[#050508]">
                   <LivePreview blueprint={previewData} scale={layout === LAYOUT.PREVIEW ? 0.82 : 0.68} />
                 </div>
               </motion.div>

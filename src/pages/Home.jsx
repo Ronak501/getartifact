@@ -1,9 +1,9 @@
 "use client"
 
-import { Suspense, useRef, useState } from 'react'
+import { Suspense, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Link } from '@lib/router-shim'
-import { motion } from 'framer-motion'
+import { motion, useScroll, useTransform } from 'framer-motion'
 import HeroScene from '@3d/scenes/HeroScene'
 import { PREBUILT_TEMPLATES } from '@data/prebuiltTemplates'
 
@@ -19,115 +19,41 @@ const STEPS = [
 const LOGOS = ['Vercel', 'Supabase', 'Stripe', 'Anthropic', 'Google', 'OpenAI']
 
 export default function Home() {
+  const heroRef = useRef(null)
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
+  const sceneY = useTransform(scrollYProgress, [0, 1], [0, 120])
+  const sceneRotate = useTransform(scrollYProgress, [0, 1], [0, 12])
   return (
     <main style={{ background: '#080810', color: '#f0f0ff', overflowX: 'hidden' }}>
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '7rem 5% 4rem', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-
-        {/* Background gradient orbs */}
-        <div style={{ position: 'absolute', top: '10%', left: '20%', width: '600px', height: '600px', background: 'radial-gradient(circle, #3d5eff18 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', top: '30%', right: '15%', width: '400px', height: '400px', background: 'radial-gradient(circle, #bf5fff12 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
-
-        {/* Badge */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          style={{ marginBottom: '2rem' }}
-        >
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.4rem 1rem', borderRadius: '50px',
-            background: 'rgba(61,94,255,0.1)', border: '1px solid rgba(61,94,255,0.3)',
-            color: '#7b9fff', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.05em',
-          }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3d5eff', animation: 'pulse 2s infinite' }} />
-            Parallel 3D asset + interactive code generation
-          </span>
-        </motion.div>
-
-        {/* Headline */}
-        <motion.h1
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          style={{
-            fontSize: 'clamp(2.8rem, 7vw, 5.5rem)',
-            fontWeight: 900,
-            lineHeight: 1.04,
-            letterSpacing: '-0.03em',
-            maxWidth: '860px',
-            marginBottom: '1.4rem',
-            fontFamily: 'var(--font-display, system-ui)',
-          }}
-        >
-          Build Stunning 3D Websites
-          <br />
-          <span style={{ background: 'linear-gradient(135deg, #3d5eff 0%, #00d4ff 50%, #bf5fff 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-            with AI in Seconds
-          </span>
-        </motion.h1>
-
-        {/* Subtitle */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.55 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          style={{ fontSize: 'clamp(1rem, 2vw, 1.2rem)', maxWidth: '480px', lineHeight: 1.7, marginBottom: '2.5rem' }}
-        >
-          A clean pipeline for turning a product idea into a 3D asset,
-          <br />a React scene, and a live preview.
-        </motion.p>
-
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.45 }}
-          style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}
-        >
-          <Link to="/builder" style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.9rem 2.2rem', borderRadius: '10px',
-            background: '#3d5eff', color: '#fff', fontWeight: 700, fontSize: '0.95rem',
-            textDecoration: 'none', boxShadow: '0 0 32px rgba(61,94,255,0.45)',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#2b4bef'; e.currentTarget.style.boxShadow = '0 0 48px rgba(61,94,255,0.65)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#3d5eff'; e.currentTarget.style.boxShadow = '0 0 32px rgba(61,94,255,0.45)' }}
-          >
-            Start Building Free →
-          </Link>
-          <a href="#demo" style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.9rem 2.2rem', borderRadius: '10px',
-            background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.65)',
-            border: '1px solid rgba(255,255,255,0.1)', fontWeight: 600, fontSize: '0.95rem',
-            textDecoration: 'none', backdropFilter: 'blur(8px)', transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = '#fff' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.65)' }}
-          >
-            ▶ Watch Demo
-          </a>
-        </motion.div>
-
-        {/* Trusted by logos */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.3 }}
-          transition={{ delay: 0.9 }}
-          style={{ marginTop: '4rem', display: 'flex', alignItems: 'center', gap: '2.5rem', flexWrap: 'wrap', justifyContent: 'center' }}
-        >
-          <span style={{ fontSize: '0.72rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Powered by</span>
-          {LOGOS.map(l => (
-            <span key={l} style={{ fontSize: '0.82rem', fontWeight: 600, color: 'rgba(255,255,255,0.45)' }}>{l}</span>
-          ))}
-        </motion.div>
+      <section ref={heroRef} className="home-hero" aria-labelledby="hero-title">
+        <div className="home-hero-glow home-hero-glow-left" />
+        <div className="home-hero-glow home-hero-glow-right" />
+        <div className="home-hero-grid">
+          <div className="home-hero-copy">
+            <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}><span className="home-hero-badge"><span /> Parallel 3D asset + interactive code generation</span></motion.div>
+            <motion.h1 id="hero-title" initial={{ opacity: 0, y: 26 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1 }}>Generate websites that <span>move with your audience.</span></motion.h1>
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 0.62 }} transition={{ duration: 0.7, delay: 0.25 }}>Describe the product once. Get the 3D hero asset, scroll choreography, camera rig, and deployable React code in one assembled experience.</motion.p>
+            <motion.div className="hero-prompt-card" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.38 }}>
+              <div className="hero-prompt-label"><span>Prompt</span><span>Scroll aware</span></div>
+              <p>Create a premium interactive landing page for a futuristic watch with a floating 3D model and scroll-driven reveals.</p>
+              <Link to="/builder" className="hero-generate-button">Generate this experience <span>&rarr;</span></Link>
+            </motion.div>
+            <div className="hero-signals"><span><b>01</b> 3D asset</span><span><b>02</b> Scroll timeline</span><span><b>03</b> Live preview</span></div>
+          </div>
+          <motion.div className="home-hero-visual" style={{ y: sceneY, rotate: sceneRotate }}>
+            <div className="hero-canvas-shell">
+              <div className="hero-canvas-header"><span className="hero-canvas-dot" /> Live 3D scene <span>drag to explore</span></div>
+              <div className="hero-canvas"><Suspense fallback={<div className="hero-canvas-loading">Loading 3D scene...</div>}><Canvas camera={{ position: [0, 0, 6.4], fov: 48 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}><HeroScene /></Canvas></Suspense></div>
+              <div className="hero-canvas-footer"><span>OBJECT: AI CORE</span><span>ANIMATION: ACTIVE</span></div>
+            </div>
+            <div className="hero-float-card hero-float-card-top"><small>ASSET TRACK</small><strong>.glb ready</strong></div>
+            <div className="hero-float-card hero-float-card-bottom"><small>SCENE TRACK</small><strong>Scroll linked</strong></div>
+          </motion.div>
+        </div>
+        <a href="#demo" className="home-scroll-cue" aria-label="Scroll to generated preview"><span /> Scroll to explore</a>
       </section>
-
-      {/* ── Browser Mockup — Large Interactive 3D Preview ─────────────────── */}
       <section id="demo" style={{ padding: '0 4% 8rem', position: 'relative' }}>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
