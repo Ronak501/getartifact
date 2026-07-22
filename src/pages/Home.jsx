@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useRef } from 'react'
+import { Suspense, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Link } from '@lib/router-shim'
 import { motion, useScroll, useTransform } from 'framer-motion'
