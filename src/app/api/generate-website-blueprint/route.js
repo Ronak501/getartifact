@@ -21,17 +21,22 @@ Pick the most striking 3D object type from this list that matches the user's top
 - "matrix" (digital rain, code cascades, hacker streams, developer tools)
 - "icosa" (polyhedrons, geometric prisms, architectural shapes, real estate)
 
-2. HERO LAYOUT ENGINE:
-Pick one layout archetype (randomize and match brand vibe):
-- "split" (50/50 left text, right 3D interactive subject)
-- "centered" (cinematic centered headline over immersive background 3D canvas)
-- "magazine" (editorial typographic grid with bold oversized headlines)
-- "minimal" (clean luxury Scandinavian whitespace with floating 3D accent)
+2. HERO & SECTION LAYOUT ALTERNATION ENGINE (CRITICAL RULE):
+You MUST dynamically alternate the visual layout structure across sections so the website never feels repetitive:
+- Hero: "split-right" (Text Left, 3D Interactive Subject Right 50/50) OR "centered" (Cinematic center headline over immersive background canvas) OR "magazine" (Editorial grid).
+- Section 1 (Showcase/Features): "split-left" (3D Component/Interactive Showcase Left, Text Right — reversing visual flow!) OR "card-float" (Floating asymmetrical cards over 3D background).
+- Section 2 (Process/Deep Dive): "center-stage" (Centered headline with horizontal scroll cards or sticky interactive stage).
+- Section 3+ (Stats/Testimonials/Pricing): "grid-asymmetrical" (Staggered bento box layout with micro-animations).
 
 3. COLOR PALETTE ENGINE:
 Tailor the hex colors specifically to the mood and industry (e.g. bakery/food = warm golden cream, cocoa brown & honey yellow; crypto/tech = electric neon cyan, violet & dark void black; luxury fashion = ivory, rose gold & velvet black; eco/nature = forest green, sage & warm earth; fitness = electric orange, crimson & deep carbon). Ensure high contrast between background and text!
 
-4. SECTION GENERATOR (Generate 3 to 5 unique sections):
+4. SCROLL & INTERACTION CHOREOGRAPHY:
+Assign specific scroll animations and component behaviors to make the layout feel alive:
+- Supported scroll behaviors: "sticky_pin_rotate" | "parallax_float" | "depth_zoom_reveal" | "staggered_fade_up" | "horizontal_scroll".
+- Supported component interactions: "mouse_magnetic_tilt" | "soundwave_pulse" | "360_drag_spin" | "hover_glow_expand".
+
+5. SECTION GENERATOR (Generate 3 to 5 unique sections):
 NEVER generate generic "Why Us" or "Instant Performance" unless the site is a generic cloud platform.
 If the prompt is about a coffee shop or restaurant, generate sections like: "Artisanal Blends" (features), "Our Roast Process" (process), "Customer Reviews" (testimonials).
 If the prompt is about an AI startup, generate sections like: "Autonomous Agents" (features), "10x Speed Multiplier" (stats), "Enterprise Pricing" (pricing).
@@ -64,7 +69,7 @@ JSON SCHEMA:
     "subheadline": "Persuasive subheadline explaining the unique value proposition (10-20 words)",
     "cta_primary": "Action-oriented button text",
     "cta_secondary": "Secondary action text",
-    "layout": "split | centered | magazine | minimal",
+    "layout": "split-right | split-left | centered | magazine | minimal",
     "background_type": "gradient_mesh | blobs | radial | editorial",
     "animation": "particle_float | magnetic_hover | pulse_glow",
     "three_d_object": {
@@ -77,8 +82,11 @@ JSON SCHEMA:
     {
       "id": "unique-section-1",
       "type": "features | stats | testimonials | pricing | cta | process | faq | about",
+      "layout": "split-left | split-right | center-stage | card-float | grid-asymmetrical",
       "title": "Creative Section Heading",
       "subtitle": "ENGAGING SUBTITLE",
+      "scroll_behavior": "sticky_pin_rotate | parallax_float | depth_zoom_reveal | staggered_fade_up",
+      "component_interaction": "mouse_magnetic_tilt | soundwave_pulse | 360_drag_spin | hover_glow_expand",
       "content": [
         { "icon": "✨", "title": "Specific Feature Title", "description": "Detailed explanation relevant to the user prompt." },
         { "icon": "🔥", "title": "Another Feature", "description": "Tailored domain content." }
