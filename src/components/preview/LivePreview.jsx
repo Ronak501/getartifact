@@ -8,9 +8,10 @@
  *  - light/dark theme detection from palette
  */
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { motion } from 'framer-motion'
 import { Canvas, useFrame } from '@react-three/fiber'
+import { Gltf, Float, Center } from '@react-three/drei'
 import PreviewSection from './PreviewSection'
 
 /* ─── CSS keyframes ────────────────────────────────────────────────────────── */
@@ -70,43 +71,75 @@ function isLightColor(hex = '#0a0a14') {
 }
 
 function pickHeroLayout(blueprint) {
-  const archetype = (
-    blueprint.creative_concept?.layout_archetype ??
-    blueprint.hero?.layout ?? ''
-  ).toLowerCase()
-  if (/magazine|editorial|brutalist|newspaper/i.test(archetype)) return 'magazine'
-  if (/center|cinematic|full.?screen|immersive|story|scroll/i.test(archetype)) return 'centered'
-  if (/minimal|luxury|clean|swiss|scandinavian|architectural/i.test(archetype)) return 'minimal'
-  return 'split'
+  const fullText = JSON.stringify(blueprint || {}).toLowerCase()
+  const explicit = (blueprint?.creative_concept?.layout_archetype ?? blueprint?.hero?.layout ?? blueprint?.heroLayout ?? '').toLowerCase()
+  if (explicit.includes('mag') || explicit.includes('edit')) return 'magazine'
+  if (explicit.includes('cent') || explicit.includes('stack')) return 'centered'
+  if (explicit.includes('min') || explicit.includes('clean')) return 'minimal'
+  if (explicit.includes('bento') || explicit.includes('grid')) return 'bento'
+  if (explicit.includes('cine') || explicit.includes('full') || explicit.includes('immer')) return 'cinematic'
+  if (explicit.includes('split')) return 'split'
+
+  if (/magazine|editorial|fashion|vogue|bold|art|creative|studio|agency|trend/i.test(fullText)) return 'magazine'
+  if (/bento|grid|saas|dashboard|platform|metric|analytics|cloud|infra|ai tool/i.test(fullText)) return 'bento'
+  if (/cinematic|immersive|movie|film|game|gaming|space|vr|ar|metaverse/i.test(fullText)) return 'cinematic'
+  if (/center|heroic|monumental|stacked|centered|super|collect|hero|epic|launch/i.test(fullText)) return 'centered'
+  if (/minimal|luxury|clean|swiss|scandinavian|architect|watch|time|jewel|wealth|finance/i.test(fullText)) return 'minimal'
+
+  const seed = (blueprint?.website_name || blueprint?.creative_concept?.website_name || blueprint?.meta?.prompt || 'default')
+  const hash = Array.from(seed).reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const layouts = ['split', 'centered', 'magazine', 'minimal', 'bento', 'cinematic']
+  return layouts[hash % layouts.length]
 }
 
 function pick3DType(blueprint) {
-  const subject = (
-    blueprint.cinematic_3d_scene?.main_3d_subject ??
-    blueprint.hero?.['3d_integration'] ??
-    blueprint.hero?.three_d_object?.type ??
-    ''
-  ).toLowerCase()
-  if (/crystal|gem|diamond|facet|jewel/i.test(subject))              return 'crystal'
-  if (/neural|network|brain|node|synapse|graph/i.test(subject))      return 'neural'
-  if (/dna|helix|cell|bio|protein|gene|molecule/i.test(subject))     return 'dna'
-  if (/particle|dust|cloud|scatter|field|star/i.test(subject))       return 'particles'
-  if (/planet|globe|earth|sphere|world|moon/i.test(subject))         return 'planet'
-  if (/torus|knot|twist|ribbon|coil/i.test(subject))                 return 'torus'
-  if (/holo|hologram|wireframe|projection/i.test(subject))           return 'hologram'
-  if (/warp|vortex|tunnel|portal|wormhole/i.test(subject))           return 'warp'
-  if (/morph|blob|liquid|fluid|plasma/i.test(subject))               return 'morph'
-  if (/matrix|code|rain|cascade|terminal/i.test(subject))            return 'matrix'
-  if (/icosa|polyhedron|gem|facet|prism/i.test(subject))             return 'icosa'
-  // fallback based on industry/style
-  const style = (blueprint.creative_concept?.visual_signature ?? blueprint.design_style ?? '').toLowerCase()
-  if (/nature|organic|health|medical/i.test(style))  return 'dna'
-  if (/crypto|nft|gaming|cyber/i.test(style))        return 'crystal'
-  if (/space|galaxy|cosmos/i.test(style))            return 'planet'
-  if (/ai|neural|machine/i.test(style))              return 'neural'
-  if (/holo|tech|futurist/i.test(style))             return 'hologram'
-  if (/morph|blob|glass/i.test(style))               return 'morph'
-  return 'orbital'
+  const fullText = [
+    blueprint?.meta?.prompt,
+    blueprint?.prompt,
+    blueprint?.website_name,
+    blueprint?.creative_concept?.website_name,
+    blueprint?.business_type,
+    blueprint?.hero?.headline,
+    blueprint?.hero?.subheadline,
+    blueprint?.cinematic_3d_scene?.main_3d_subject,
+    blueprint?.hero?.['3d_integration'],
+    blueprint?.hero?.three_d_object?.type,
+    JSON.stringify(blueprint || {})
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  if (/burger|food|pizza|bakery|cake|coffee|restaurant|drink|eat|cafe|kitchen|gourmet|culinary|savor|menu|dining|chef|taste|meal|dish|recipe|cooking|bistro|snack|beverage|wine|brew/i.test(fullText)) return 'food'
+  if (/spider|marvel|hero|comic|avenger|batman|super|collectible|action figure/i.test(fullText)) return 'spiderman'
+  if (/airpod|earbud|headphone|audio|sound|music|podcast|speaker|acoustic/i.test(fullText)) return 'airpods'
+  if (/car|auto|racing|vehicle|drive|motor|speed|tesla|ferrari|porsche/i.test(fullText)) return 'car'
+  if (/watch|time|chronograph|rolex|timepiece|luxury/i.test(fullText)) return 'watch'
+  if (/shoe|sneaker|nike|adidas|footwear|boot|sandal|jordans/i.test(fullText)) return 'sneaker'
+  if (/game|gaming|console|station|esport|controller|ps5|xbox|nintendo|play/i.test(fullText)) return 'gaming'
+  if (/crypto|coin|bitcoin|nft|finance|trading|money|bank|wealth|token|blockchain|solana|ethereum/i.test(fullText)) return 'crypto'
+  if (/gym|fitness|workout|sport|bodybuilding|train|muscle|yoga|health club/i.test(fullText)) return 'fitness'
+  if (/house|estate|building|architect|home|construction|property|realty|condo/i.test(fullText)) return 'realestate'
+  if (/robot|cyborg|android|mech|bot|ai agent|artificial intelligence/i.test(fullText)) return 'robot'
+  if (/travel|tour|vacation|hotel|resort|flight|trip|journey|destination|adventure|voyage|explore|passport|cruise|tourism/i.test(fullText)) return 'travel'
+  if (/fashion|cloth|wear|style|apparel|dress|boutique|vogue|shirt|outfit|beauty|cosmetic|makeup|spa|salon|skin|hair|jewelry/i.test(fullText)) return 'beauty'
+  if (/pet|dog|cat|animal|vet|puppy|kitten|hound|paw|bird|aquarium|zoo|wildlife/i.test(fullText)) return 'pet'
+  if (/eco|green|solar|energy|plant|nature|tree|forest|leaf|environment|renew|clean energy|sustain|garden|earth/i.test(fullText)) return 'eco'
+  if (/edu|school|learn|course|study|book|read|academy|student|teach|tutor|class|college|university|library|knowledge|degree/i.test(fullText)) return 'education'
+  if (/law|legal|attorney|lawyer|court|justice|finance|invest|wealth|bank|money|capital|consult|firm|corporate|business|trade|stock/i.test(fullText)) return 'legal'
+  if (/crystal|gem|diamond|facet|jewel|sapphire|ruby/i.test(fullText)) return 'crystal'
+  if (/neural|network|brain|node|synapse|graph|intelligence|data science/i.test(fullText)) return 'neural'
+  if (/dna|helix|cell|bio|protein|gene|molecule|medical|pharma|biotech|doctor/i.test(fullText)) return 'dna'
+  if (/particle|dust|cloud|scatter|field|star|cosmos|space|astronomy/i.test(fullText)) return 'particles'
+  if (/planet|globe|earth|sphere|world|moon|galaxy|solar|universe/i.test(fullText)) return 'planet'
+  if (/torus|knot|twist|ribbon|coil|loop/i.test(fullText)) return 'torus'
+  if (/holo|hologram|wireframe|projection|tech|futurist|cyber|metaverse/i.test(fullText)) return 'hologram'
+  if (/warp|vortex|tunnel|portal|wormhole|dimension/i.test(fullText)) return 'warp'
+  if (/morph|blob|liquid|fluid|plasma|glass|water|ocean/i.test(fullText)) return 'morph'
+  if (/matrix|code|rain|cascade|terminal|software|developer|coding|web|app/i.test(fullText)) return 'matrix'
+  if (/icosa|polyhedron|prism|geometry/i.test(fullText)) return 'icosa'
+
+  const seed = (blueprint?.website_name || blueprint?.creative_concept?.website_name || blueprint?.meta?.prompt || 'default')
+  const hash = Array.from(seed).reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const choices = ['crystal', 'neural', 'planet', 'torus', 'hologram', 'warp', 'matrix', 'icosa', 'orbital', 'particles', 'dna', 'morph', 'robot', 'travel', 'beauty', 'pet', 'eco', 'education', 'legal']
+  return choices[hash % choices.length]
 }
 
 function pickBgStyle(blueprint) {
@@ -143,6 +176,7 @@ export default function LivePreview({ blueprint, scale = 0.72 }) {
   const heroLayout = pickHeroLayout(blueprint)
   const objType    = pick3DType(blueprint)
   const bgStyle    = pickBgStyle(blueprint)
+  const modelUrl   = blueprint.modelAsset?.modelUrl ?? blueprint.generatedCode?.modelUrl ?? blueprint.model_url ?? null
 
   return (
     <div style={{
@@ -153,9 +187,9 @@ export default function LivePreview({ blueprint, scale = 0.72 }) {
       <PreviewNavbar navbar={navbar} palette={p} scale={scale} typography={typography} light={light} />
       <PreviewHero
         hero={hero} palette={p} scale={scale} typography={typography}
-        websiteName={websiteName} heroLayout={heroLayout} objType={objType} bgStyle={bgStyle} light={light}
+        websiteName={websiteName} heroLayout={heroLayout} objType={objType} bgStyle={bgStyle} light={light} modelUrl={modelUrl}
       />
-      <PreviewScrollChapter palette={p} scale={scale} objType={objType} websiteName={websiteName} />
+      <PreviewScrollChapter palette={p} scale={scale} objType={objType} websiteName={websiteName} modelUrl={modelUrl} />
       {sections?.map((s, idx) => (
         <PreviewSection key={s.id || `sec-${idx}`} section={s} palette={p} scale={scale} light={light} />
       ))}
@@ -220,16 +254,18 @@ function PreviewNavbar({ navbar, palette, scale, typography, light }) {
 }
 
 /* ─── Hero dispatcher ─────────────────────────────────────────────────────── */
-function PreviewHero({ hero, palette, scale, typography, websiteName, heroLayout, objType, bgStyle, light }) {
-  const props = { hero, palette, scale, typography, websiteName, objType, bgStyle, light }
+function PreviewHero({ hero, palette, scale, typography, websiteName, heroLayout, objType, bgStyle, light, modelUrl }) {
+  const props = { hero, palette, scale, typography, websiteName, objType, bgStyle, light, modelUrl }
   if (heroLayout === 'magazine')  return <HeroMagazine  {...props} />
   if (heroLayout === 'centered')  return <HeroCentered  {...props} />
   if (heroLayout === 'minimal')   return <HeroMinimal   {...props} />
+  if (heroLayout === 'bento')     return <HeroBento     {...props} />
+  if (heroLayout === 'cinematic') return <HeroCinematic {...props} />
   return <HeroSplit {...props} />
 }
 
 /* ─── Hero: Split (text left, 3D right) ──────────────────────────────────── */
-function HeroSplit({ hero, palette, scale, typography, websiteName, objType, bgStyle, light }) {
+function HeroSplit({ hero, palette, scale, typography, websiteName, objType, bgStyle, light, modelUrl }) {
   const ref  = useRef(null)
   const [mouse, setMouse] = useState({ x: 0.5, y: 0.5 })
   const onMove = useCallback(e => {
@@ -273,14 +309,14 @@ function HeroSplit({ hero, palette, scale, typography, websiteName, objType, bgS
           transform: `translate(${-px * 0.5}px, ${-py * 0.4}px)`,
           transition: 'transform 0.1s ease-out',
         }}>
-        <GeneratedWebGLScene palette={palette} size={220 * scale} objType={objType} />
+        <GeneratedWebGLScene palette={palette} size={220 * scale} objType={objType} modelUrl={modelUrl} />
       </motion.div>
     </section>
   )
 }
 
 /* ─── Hero: Centered (large centered text, 3D above) ─────────────────────── */
-function HeroCentered({ hero, palette, scale, typography, websiteName, objType, bgStyle, light }) {
+function HeroCentered({ hero, palette, scale, typography, websiteName, objType, bgStyle, light, modelUrl }) {
   return (
     <section style={{
       position: 'relative', overflow: 'hidden',
@@ -298,7 +334,7 @@ function HeroCentered({ hero, palette, scale, typography, websiteName, objType, 
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ delay: 0.1, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         style={{ position: 'relative', zIndex: 10, marginBottom: 24 * scale }}>
-        <GeneratedWebGLScene palette={palette} size={160 * scale} objType={objType} />
+        <GeneratedWebGLScene palette={palette} size={160 * scale} objType={objType} modelUrl={modelUrl} />
       </motion.div>
 
       <div style={{ position: 'relative', zIndex: 10, maxWidth: 700 * scale }}>
@@ -312,7 +348,7 @@ function HeroCentered({ hero, palette, scale, typography, websiteName, objType, 
 }
 
 /* ─── Hero: Magazine (oversized headline, accent bar) ────────────────────── */
-function HeroMagazine({ hero, palette, scale, typography, websiteName, objType, bgStyle, light }) {
+function HeroMagazine({ hero, palette, scale, typography, websiteName, objType, bgStyle, light, modelUrl }) {
   return (
     <section style={{
       position: 'relative', overflow: 'hidden',
@@ -381,7 +417,7 @@ function HeroMagazine({ hero, palette, scale, typography, websiteName, objType, 
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
           style={{ flexShrink: 0, alignSelf: 'center' }}>
-          <GeneratedWebGLScene palette={palette} size={200 * scale} objType={objType} />
+          <GeneratedWebGLScene palette={palette} size={200 * scale} objType={objType} modelUrl={modelUrl} />
         </motion.div>
       </div>
     </section>
@@ -389,7 +425,7 @@ function HeroMagazine({ hero, palette, scale, typography, websiteName, objType, 
 }
 
 /* ─── Hero: Minimal (typography-first, subtle 3D) ────────────────────────── */
-function HeroMinimal({ hero, palette, scale, typography, websiteName, objType, bgStyle, light }) {
+function HeroMinimal({ hero, palette, scale, typography, websiteName, objType, bgStyle, light, modelUrl }) {
   return (
     <section style={{
       position: 'relative', overflow: 'hidden',
@@ -460,10 +496,146 @@ function HeroMinimal({ hero, palette, scale, typography, websiteName, objType, b
             animate={{ opacity: 0.7 }}
             transition={{ delay: 0.5, duration: 1 }}
             style={{ flexShrink: 0, alignSelf: 'center', opacity: 0.6 }}>
-            <GeneratedWebGLScene palette={palette} size={130 * scale} objType={objType} />
+            <GeneratedWebGLScene palette={palette} size={130 * scale} objType={objType} modelUrl={modelUrl} />
           </motion.div>
         </div>
       </div>
+    </section>
+  )
+}
+
+/* ─── Hero: Bento Grid (modern asymmetric bento layout) ──────────────────── */
+function HeroBento({ hero, palette, scale, typography, websiteName, objType, bgStyle, light, modelUrl }) {
+  return (
+    <section style={{
+      position: 'relative', overflow: 'hidden',
+      minHeight: `${600 * scale}px`,
+      padding: `${60 * scale}px ${36 * scale}px ${60 * scale}px`,
+    }}>
+      <HeroBg palette={palette} scale={scale} bgStyle="particles" light={light} />
+      
+      <div style={{ position: 'relative', zIndex: 10, maxWidth: 1100 * scale, margin: '0 auto' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          style={{ textAlign: 'center', marginBottom: 36 * scale }}>
+          <HeroBadge websiteName={websiteName} palette={palette} scale={scale} center />
+          <HeroHeadline hero={hero} palette={palette} scale={scale} typography={typography} center />
+        </motion.div>
+
+        {/* Bento Grid Container */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 1fr',
+          gap: 20 * scale,
+          alignItems: 'stretch',
+        }}>
+          {/* Main Left Bento Box: Subheadline + CTAs + Live Stats */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.7 }}
+            style={{
+              background: light ? '#ffffffdf' : '#10101edf',
+              border: `1px solid ${palette.primary}35`,
+              borderRadius: 24 * scale,
+              padding: 32 * scale,
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              boxShadow: `0 20px 50px ${palette.primary}15`,
+              backdropFilter: 'blur(16px)',
+            }}>
+            <div>
+              <div style={{ color: palette.accent, fontSize: 11 * scale, fontWeight: 700, letterSpacing: '0.1em', marginBottom: 12 * scale, textTransform: 'uppercase' }}>
+                ✦ Next-Gen Architecture
+              </div>
+              <p style={{ fontSize: 16 * scale, color: palette.text + 'cc', lineHeight: 1.6, marginBottom: 28 * scale }}>
+                {hero?.subheadline}
+              </p>
+            </div>
+            <div>
+              <HeroCTAs hero={hero} palette={palette} scale={scale} />
+              <div style={{ display: 'flex', gap: 24 * scale, marginTop: 28 * scale, paddingTop: 20 * scale, borderTop: `1px solid ${palette.primary}20` }}>
+                <div>
+                  <div style={{ fontSize: 20 * scale, fontWeight: 800, color: palette.text }}>99.9%</div>
+                  <div style={{ fontSize: 11 * scale, color: palette.text + '60' }}>Precision Score</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 20 * scale, fontWeight: 800, color: palette.text }}>4.9 ★</div>
+                  <div style={{ fontSize: 11 * scale, color: palette.text + '60' }}>User Rating</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 20 * scale, fontWeight: 800, color: palette.primary }}>24/7</div>
+                  <div style={{ fontSize: 11 * scale, color: palette.text + '60' }}>Active Support</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Right Bento Box: Dedicated 3D Interactive Canvas */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3, duration: 0.7 }}
+            style={{
+              background: `radial-gradient(circle at 50% 50%, ${palette.primary}25, ${light ? '#f5f5fa' : '#080811'})`,
+              border: `1px solid ${palette.secondary}40`,
+              borderRadius: 24 * scale,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              position: 'relative', overflow: 'hidden', minHeight: 340 * scale,
+              boxShadow: `0 20px 50px ${palette.secondary}15`,
+            }}>
+            <div style={{ position: 'absolute', top: 16 * scale, right: 16 * scale, background: palette.primary + '20', border: `1px solid ${palette.primary}50`, padding: `4px ${10 * scale}px`, borderRadius: 12, fontSize: 10 * scale, color: palette.primary, fontWeight: 600 }}>
+              🔴 Live WebGL 3D
+            </div>
+            <GeneratedWebGLScene palette={palette} size={280 * scale} objType={objType} modelUrl={modelUrl} />
+            <div style={{ position: 'absolute', bottom: 16 * scale, fontSize: 11 * scale, color: palette.text + '50', letterSpacing: '0.05em' }}>
+              ✦ Interactive Orbit & Rotate ✦
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── Hero: Cinematic Fullstage (immersive backdrop 3D scene + floating glass UI) ─ */
+function HeroCinematic({ hero, palette, scale, typography, websiteName, objType, bgStyle, light, modelUrl }) {
+  return (
+    <section style={{
+      position: 'relative', overflow: 'hidden',
+      minHeight: `${640 * scale}px`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: `${60 * scale}px ${32 * scale}px`,
+    }}>
+      <HeroBg palette={palette} scale={scale} bgStyle="dark-space" light={light} />
+      
+      {/* Massive Backdrop 3D Scene */}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.85, zIndex: 1 }}>
+        <GeneratedWebGLScene palette={palette} size={520 * scale} objType={objType} modelUrl={modelUrl} />
+      </div>
+
+      {/* Floating Glassmorphism Foreground Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.94 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          position: 'relative', zIndex: 10,
+          background: light ? 'rgba(255, 255, 255, 0.85)' : 'rgba(12, 12, 22, 0.78)',
+          border: `1px solid ${palette.primary}50`,
+          borderRadius: 32 * scale,
+          padding: `${48 * scale}px ${56 * scale}px`,
+          maxWidth: 720 * scale,
+          textAlign: 'center',
+          boxShadow: `0 30px 80px rgba(0,0,0,0.6), 0 0 40px ${palette.primary}25`,
+          backdropFilter: 'blur(20px)',
+        }}>
+        <HeroBadge websiteName={websiteName} palette={palette} scale={scale} center />
+        <HeroHeadline hero={hero} palette={palette} scale={scale} typography={typography} center />
+        <HeroSub hero={hero} palette={palette} scale={scale} center />
+        <HeroCTAs hero={hero} palette={palette} scale={scale} center />
+      </motion.div>
     </section>
   )
 }
@@ -648,17 +820,42 @@ function HeroBg({ palette, scale, bgStyle, light }) {
 }
 
 /* ─── 3D Scene dispatcher ─────────────────────────────────────────────────── */
-function GeneratedWebGLScene({ palette, size, objType }) {
+function GeneratedWebGLScene({ palette, size, objType, modelUrl }) {
   return (
     <div style={{ width: size, height: size, filter: `drop-shadow(0 0 ${size * 0.12}px ${palette.primary}88)` }}>
       <Canvas camera={{ position: [0, 0, 5.4], fov: 46 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}>
-        <ambientLight intensity={0.42} />
+        <ambientLight intensity={0.5} />
+        <directionalLight position={[5, 5, 5]} intensity={1.5} />
         <pointLight position={[4, 4, 5]} intensity={25} color={palette.primary} />
         <pointLight position={[-4, -2, 3]} intensity={18} color={palette.secondary} />
         <pointLight position={[0, -4, 2]} intensity={12} color={palette.accent} />
-        <GeneratedWebGLObject palette={palette} objType={objType} />
+        {modelUrl ? (
+          <Suspense fallback={<GeneratedWebGLObject palette={palette} objType={objType} />}>
+            <ExternalGLTFModel url={modelUrl} />
+          </Suspense>
+        ) : (
+          <GeneratedWebGLObject palette={palette} objType={objType} />
+        )}
       </Canvas>
     </div>
+  )
+}
+
+function ExternalGLTFModel({ url }) {
+  const groupRef = useRef(null)
+  useFrame(({ clock }) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y = clock.elapsedTime * 0.35
+    }
+  })
+  return (
+    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.4}>
+      <Center>
+        <group ref={groupRef} scale={1.8}>
+          <Gltf src={url} />
+        </group>
+      </Center>
+    </Float>
   )
 }
 
@@ -676,38 +873,488 @@ function GeneratedWebGLObject({ palette, objType }) {
     if (orbitRef.current) orbitRef.current.rotation.z = -t * 0.55
   })
 
-  const isCrystal = ['crystal', 'icosa', 'hologram'].includes(objType)
-  const isPlanet = objType === 'planet'
-  const isNeural = ['neural', 'particles', 'dna'].includes(objType)
+  // ── 1. AirPods / Headphone / Audio Capsule ────────────────────────────────
+  if (objType === 'airpods' || objType === 'audio') {
+    return (
+      <group ref={groupRef}>
+        {/* Main Earbud Head */}
+        <mesh position={[0, 0.4, 0]} rotation={[0.2, 0, 0]}>
+          <sphereGeometry args={[0.7, 32, 32]} />
+          <meshPhysicalMaterial color="#ffffff" metalness={0.9} roughness={0.15} clearcoat={1} clearcoatRoughness={0.1} />
+        </mesh>
+        {/* Earbud Stem */}
+        <mesh position={[0, -0.5, 0.1]} rotation={[0.1, 0, 0]}>
+          <cylinderGeometry args={[0.25, 0.22, 1.4, 32]} />
+          <meshPhysicalMaterial color="#f0f0f5" metalness={0.85} roughness={0.2} />
+        </mesh>
+        {/* Speaker Acoustic Mesh Dark Core */}
+        <mesh position={[0, 0.5, 0.65]} rotation={[1.3, 0, 0]}>
+          <cylinderGeometry args={[0.3, 0.3, 0.1, 32]} />
+          <meshStandardMaterial color="#111111" metalness={0.5} roughness={0.5} />
+        </mesh>
+        {/* Pulsating Audio Equalizer Rings */}
+        {[1.3, 1.8, 2.3].map((radius, idx) => (
+          <mesh key={idx} rotation={[1.5, 0, 0]} ref={idx === 0 ? orbitRef : null}>
+            <torusGeometry args={[radius, 0.03, 16, 64]} />
+            <meshStandardMaterial color={idx === 0 ? palette.primary : idx === 1 ? palette.secondary : palette.accent} emissive={idx === 0 ? palette.primary : palette.accent} emissiveIntensity={2} transparent opacity={0.7 - idx * 0.2} />
+          </mesh>
+        ))}
+      </group>
+    )
+  }
+
+  // ── 2. Spiderman / Superhero Web Orb ──────────────────────────────────────
+  if (objType === 'spiderman' || objType === 'superhero') {
+    return (
+      <group ref={groupRef}>
+        {/* Crimson Core Orb */}
+        <mesh scale={1.2}>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshPhysicalMaterial color="#e60026" emissive="#750012" emissiveIntensity={0.6} metalness={0.6} roughness={0.2} clearcoat={1} />
+        </mesh>
+        {/* Cobalt Blue Spider-Web Lattice Wireframe */}
+        <mesh scale={1.28}>
+          <dodecahedronGeometry args={[1, 2]} />
+          <meshStandardMaterial color="#0055ff" emissive="#0088ff" emissiveIntensity={2.5} wireframe transparent opacity={0.9} />
+        </mesh>
+        {/* Outer Cyber Web Rings */}
+        <mesh rotation={[0.7, 0.3, 0]} scale={1.6}>
+          <torusGeometry args={[1, 0.02, 16, 64]} />
+          <meshStandardMaterial color="#ff003c" emissive="#ff003c" emissiveIntensity={3} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[0, 1, 2, 3, 4, 5, 6, 7].map(idx => {
+            const angle = (idx / 8) * Math.PI * 2
+            return (
+              <mesh key={idx} position={[Math.cos(angle) * 1.8, Math.sin(angle) * 1.8, (idx % 2 ? 0.4 : -0.4)]}>
+                <octahedronGeometry args={[0.15, 0]} />
+                <meshStandardMaterial color={idx % 2 ? "#e60026" : "#0088ff"} emissive={idx % 2 ? "#e60026" : "#0088ff"} emissiveIntensity={3} />
+              </mesh>
+            )
+          })}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 3. Cyber Automotive / Car Chassis ─────────────────────────────────────
+  if (objType === 'car' || objType === 'racing') {
+    return (
+      <group ref={groupRef}>
+        {/* Main Aerodynamic Chassis */}
+        <mesh position={[0, 0.2, 0]}>
+          <boxGeometry args={[2.2, 0.5, 1.1]} />
+          <meshPhysicalMaterial color={palette.primary} metalness={0.9} roughness={0.1} clearcoat={1} />
+        </mesh>
+        {/* Glass Cockpit Canopy */}
+        <mesh position={[0.1, 0.55, 0]}>
+          <boxGeometry args={[1.2, 0.35, 0.85]} />
+          <meshPhysicalMaterial color="#111122" transmission={0.6} opacity={0.8} transparent roughness={0.1} />
+        </mesh>
+        {/* 4 Neon Glowing Wheels */}
+        {[[-0.75, -0.15, 0.55], [0.75, -0.15, 0.55], [-0.75, -0.15, -0.55], [0.75, -0.15, -0.55]].map((pos, idx) => (
+          <mesh key={idx} position={pos} rotation={[1.57, 0, 0]}>
+            <cylinderGeometry args={[0.35, 0.35, 0.25, 32]} />
+            <meshStandardMaterial color="#111" metalness={0.8} roughness={0.5} />
+            <mesh position={[0, 0, 0]}>
+              <torusGeometry args={[0.25, 0.04, 16, 32]} />
+              <meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={3} />
+            </mesh>
+          </mesh>
+        ))}
+      </group>
+    )
+  }
+
+  // ── 4. Luxury Chronometer / Watch Dial ────────────────────────────────────
+  if (objType === 'watch' || objType === 'timepiece') {
+    return (
+      <group ref={groupRef}>
+        {/* Outer Bezel Ring */}
+        <mesh rotation={[1.57, 0, 0]}>
+          <cylinderGeometry args={[1.4, 1.4, 0.2, 64]} />
+          <meshPhysicalMaterial color="#e5c158" metalness={0.95} roughness={0.1} />
+        </mesh>
+        {/* Dial Face */}
+        <mesh position={[0, 0, 0.1]} rotation={[1.57, 0, 0]}>
+          <cylinderGeometry args={[1.25, 1.25, 0.05, 64]} />
+          <meshStandardMaterial color="#0b0b12" roughness={0.8} />
+        </mesh>
+        {/* Rotating Internal Gears */}
+        <group ref={orbitRef} position={[0, 0, 0.15]}>
+          <mesh rotation={[0, 0, 0.5]}>
+            <torusGeometry args={[0.7, 0.05, 16, 6]} />
+            <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={1.5} wireframe />
+          </mesh>
+          <mesh position={[0, 0, 0.05]}>
+            <boxGeometry args={[0.08, 1.1, 0.04]} />
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={2} />
+          </mesh>
+        </group>
+      </group>
+    )
+  }
+
+  // ── 5. Gourmet Burger / Food Stack ────────────────────────────────────────
+  if (objType === 'food' || objType === 'burger') {
+    return (
+      <group ref={groupRef}>
+        <mesh position={[0, 0.6, 0]}>
+          <sphereGeometry args={[0.9, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5]} />
+          <meshStandardMaterial color="#d98c3a" roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.35, 0]} rotation={[0.2, 0, 0]}>
+          <cylinderGeometry args={[0.95, 0.9, 0.1, 16]} />
+          <meshStandardMaterial color="#4caf50" roughness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.15, 0]}>
+          <cylinderGeometry args={[0.85, 0.85, 0.15, 32]} />
+          <meshStandardMaterial color="#e53935" roughness={0.3} />
+        </mesh>
+        <mesh position={[0, -0.05, 0]} rotation={[0, 0.8, 0]}>
+          <boxGeometry args={[1.3, 0.08, 1.3]} />
+          <meshStandardMaterial color="#ffd54f" roughness={0.4} />
+        </mesh>
+        <mesh position={[0, -0.25, 0]}>
+          <cylinderGeometry args={[0.9, 0.9, 0.28, 32]} />
+          <meshStandardMaterial color="#5d4037" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, -0.55, 0]}>
+          <cylinderGeometry args={[0.85, 0.75, 0.3, 32]} />
+          <meshStandardMaterial color="#d98c3a" roughness={0.6} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[0, 1, 2, 3].map((idx) => (
+            <mesh key={idx} position={[Math.cos(idx * 1.5) * 1.5, Math.sin(idx) * 0.8, Math.sin(idx * 1.5) * 1.5]}>
+              <sphereGeometry args={[0.08, 8, 8]} />
+              <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={2} />
+            </mesh>
+          ))}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 6. Futuristic Cyber Console / Laptop / PC ─────────────────────────────
+  if (objType === 'gaming' || objType === 'game') {
+    return (
+      <group ref={groupRef}>
+        <mesh position={[0, -0.3, 0]} rotation={[0.1, 0, 0]}>
+          <boxGeometry args={[2.2, 0.25, 1.4]} />
+          <meshPhysicalMaterial color="#14141c" metalness={0.9} roughness={0.2} />
+        </mesh>
+        <mesh position={[0, 0.5, -0.5]} rotation={[-0.2, 0, 0]}>
+          <boxGeometry args={[2.0, 1.2, 0.08]} />
+          <meshStandardMaterial color="#0a0a14" metalness={0.8} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0.5, -0.45]} rotation={[-0.2, 0, 0]}>
+          <planeGeometry args={[1.8, 1.0]} />
+          <meshStandardMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={2.5} />
+        </mesh>
+        <mesh rotation={[1.2, 0.5, 0]} ref={orbitRef}>
+          <torusGeometry args={[1.6, 0.04, 16, 64]} />
+          <meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={3} />
+        </mesh>
+      </group>
+    )
+  }
+
+  // ── 7. Crypto Token / Wealth Ring ─────────────────────────────────────────
+  if (objType === 'crypto' || objType === 'finance') {
+    return (
+      <group ref={groupRef}>
+        <mesh rotation={[1.57, 0, 0]}>
+          <cylinderGeometry args={[1.2, 1.2, 0.18, 64]} />
+          <meshPhysicalMaterial color="#f7931a" metalness={0.95} roughness={0.15} />
+        </mesh>
+        <mesh position={[0, 0, 0.1]} rotation={[1.57, 0, 0]}>
+          <cylinderGeometry args={[0.9, 0.9, 0.05, 6]} />
+          <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={1.5} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[1.5, 1.8].map((r, idx) => (
+            <mesh key={idx} rotation={[idx, idx * 0.5, 0]}>
+              <torusGeometry args={[r, 0.03, 16, 64]} />
+              <meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={2} />
+            </mesh>
+          ))}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 8. Architectural Skyscraper / Real Estate Pyramid ─────────────────────
+  if (objType === 'realestate' || objType === 'house') {
+    return (
+      <group ref={groupRef}>
+        {[-0.5, 0, 0.5].map((x, idx) => (
+          <mesh key={idx} position={[x * 0.8, (idx - 1) * 0.3, 0]}>
+            <boxGeometry args={[0.6, 2.2 + idx * 0.5, 0.6]} />
+            <meshPhysicalMaterial color={idx === 1 ? palette.primary : '#222230'} metalness={0.8} roughness={0.2} transmission={idx === 1 ? 0.4 : 0} />
+          </mesh>
+        ))}
+        <mesh rotation={[1.5, 0, 0]} ref={orbitRef}>
+          <torusGeometry args={[1.7, 0.03, 16, 64]} />
+          <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={2} />
+        </mesh>
+      </group>
+    )
+  }
+
+  // ── 9. Fitness Dumbbell / Power Core ──────────────────────────────────────
+  if (objType === 'fitness' || objType === 'gym') {
+    return (
+      <group ref={groupRef} rotation={[0, 0, 0.7]}>
+        <mesh>
+          <cylinderGeometry args={[0.15, 0.15, 2.2, 32]} />
+          <meshPhysicalMaterial color="#cccccc" metalness={0.9} roughness={0.2} />
+        </mesh>
+        {[-0.8, -0.6, 0.6, 0.8].map((y, idx) => (
+          <mesh key={idx} position={[0, y, 0]}>
+            <cylinderGeometry args={[0.75, 0.75, 0.18, 32]} />
+            <meshStandardMaterial color="#111118" metalness={0.8} roughness={0.4} />
+          </mesh>
+        ))}
+        <mesh ref={orbitRef}>
+          <torusGeometry args={[1.5, 0.04, 16, 64]} />
+          <meshStandardMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={3} />
+        </mesh>
+      </group>
+    )
+  }
+
+  // ── 10. Robot / AI Agent / Cyborg Core ────────────────────────────────────
+  if (objType === 'robot' || objType === 'ai') {
+    return (
+      <group ref={groupRef}>
+        <mesh scale={1.1}>
+          <dodecahedronGeometry args={[1, 1]} />
+          <meshPhysicalMaterial color="#1e1e2f" metalness={0.9} roughness={0.1} />
+        </mesh>
+        <mesh scale={1.15} rotation={[0.4, 0, 0]}>
+          <cylinderGeometry args={[1.05, 1.05, 0.3, 32]} />
+          <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} transparent opacity={0.8} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[-1.4, 1.4].map((x, idx) => (
+            <mesh key={idx} position={[x, 0, 0]}>
+              <boxGeometry args={[0.3, 0.6, 0.3]} />
+              <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={2} />
+            </mesh>
+          ))}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 11. Travel / Flight / Destination Globe ───────────────────────────────
+  if (objType === 'travel' || objType === 'explore') {
+    return (
+      <group ref={groupRef}>
+        <mesh scale={1.25}>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshPhysicalMaterial color="#0066cc" metalness={0.4} roughness={0.6} clearcoat={0.5} />
+        </mesh>
+        <mesh scale={1.26}>
+          <icosahedronGeometry args={[1, 2]} />
+          <meshStandardMaterial color="#44ff88" wireframe transparent opacity={0.4} />
+        </mesh>
+        <group ref={orbitRef}>
+          <mesh position={[1.8, 0.4, 0]} rotation={[0, 0, -0.4]}>
+            <coneGeometry args={[0.2, 0.6, 4]} />
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={2} />
+          </mesh>
+        </group>
+      </group>
+    )
+  }
+
+  // ── 12. Beauty / Fashion / Luxury Diamond ─────────────────────────────────
+  if (objType === 'beauty' || objType === 'fashion' || objType === 'crystal') {
+    return (
+      <group ref={groupRef}>
+        <mesh scale={1.3}>
+          <octahedronGeometry args={[1, 0]} />
+          <meshPhysicalMaterial color="#ff66cc" metalness={0.1} roughness={0.05} transmission={0.9} transparent opacity={0.85} ior={1.8} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[0, 1, 2, 3].map(i => {
+            const a = (i / 4) * Math.PI * 2
+            return <mesh key={i} position={[Math.cos(a) * 1.6, Math.sin(a) * 1.6, 0]} scale={0.15}>
+              <octahedronGeometry args={[1, 0]} />
+              <meshStandardMaterial color="#ffffff" emissive="#ffddff" emissiveIntensity={3} />
+            </mesh>
+          })}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 13. Pet / Animal Trophy ───────────────────────────────────────────────
+  if (objType === 'pet' || objType === 'animal') {
+    return (
+      <group ref={groupRef}>
+        <mesh scale={0.8}>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshStandardMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={0.8} />
+        </mesh>
+        {[-0.6, 0, 0.6].map((x, idx) => (
+          <mesh key={idx} position={[x, 0.9, idx === 1 ? 0.3 : 0]} scale={0.35}>
+            <sphereGeometry args={[1, 16, 16]} />
+            <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={1.5} />
+          </mesh>
+        ))}
+        <mesh rotation={[1.5, 0, 0]} ref={orbitRef}>
+          <torusGeometry args={[1.6, 0.04, 16, 64]} />
+          <meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={2} />
+        </mesh>
+      </group>
+    )
+  }
+
+  // ── 14. Eco / Green Energy / Solar Sphere ─────────────────────────────────
+  if (objType === 'eco' || objType === 'green') {
+    return (
+      <group ref={groupRef}>
+        <mesh scale={[1.4, 1.8, 0.4]}>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshPhysicalMaterial color="#00cc44" metalness={0.2} roughness={0.3} transmission={0.6} transparent opacity={0.9} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[1.6, 2.0].map((r, idx) => (
+            <mesh key={idx} rotation={[idx * 0.8, idx, 0]}>
+              <torusGeometry args={[r, 0.03, 16, 64]} />
+              <meshStandardMaterial color="#88ff00" emissive="#88ff00" emissiveIntensity={2.5} />
+            </mesh>
+          ))}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 15. Education / Book / Wisdom Pillar ──────────────────────────────────
+  if (objType === 'education' || objType === 'learn') {
+    return (
+      <group ref={groupRef}>
+        <mesh rotation={[0.3, 0.5, 0]}>
+          <boxGeometry args={[1.8, 1.3, 0.3]} />
+          <meshPhysicalMaterial color="#225588" metalness={0.5} roughness={0.2} />
+        </mesh>
+        <mesh rotation={[0.3, 0.5, 0]} position={[0, 0, 0.17]}>
+          <boxGeometry args={[1.7, 1.2, 0.05]} />
+          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.8} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[0, 1, 2].map(i => {
+            const a = (i / 3) * Math.PI * 2
+            return <mesh key={i} position={[Math.cos(a) * 1.7, Math.sin(a) * 1.7, 0]} scale={0.18}>
+              <octahedronGeometry args={[1, 0]} />
+              <meshStandardMaterial color="#ffd700" emissive="#ffd700" emissiveIntensity={3} />
+            </mesh>
+          })}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 16. Legal / Law / Business Monolith ───────────────────────────────────
+  if (objType === 'legal' || objType === 'business') {
+    return (
+      <group ref={groupRef}>
+        <mesh position={[0, 0, 0]}>
+          <cylinderGeometry args={[0.7, 0.9, 2.6, 8]} />
+          <meshPhysicalMaterial color="#d4af37" metalness={0.95} roughness={0.15} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[-1.2, 1.2].map((x, idx) => (
+            <mesh key={idx} position={[x, 0, 0]} rotation={[1.57, 0, 0]}>
+              <cylinderGeometry args={[0.4, 0.4, 0.08, 32]} />
+              <meshStandardMaterial color="#ffd700" emissive="#ffd700" emissiveIntensity={2} />
+            </mesh>
+          ))}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 17. Hyperspace Warp / Vortex / Hologram Portal ────────────────────────
+  if (objType === 'warp' || objType === 'hologram' || objType === 'portal') {
+    return (
+      <group ref={groupRef}>
+        {[1.8, 1.4, 1.0, 0.6].map((r, idx) => (
+          <mesh key={idx} rotation={[0, 0, idx * 0.4]} position={[0, 0, (idx - 1.5) * 0.4]}>
+            <torusGeometry args={[r, 0.05, 16, 64]} />
+            <meshStandardMaterial color={idx % 2 ? palette.primary : palette.accent} emissive={idx % 2 ? palette.primary : palette.accent} emissiveIntensity={2.5} />
+          </mesh>
+        ))}
+        <mesh scale={0.4}>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={3} />
+        </mesh>
+      </group>
+    )
+  }
+
+  // ── 18. Matrix / Cyber Code Cube / Neural Network ─────────────────────────
+  if (objType === 'matrix' || objType === 'neural' || objType === 'icosa') {
+    return (
+      <group ref={groupRef}>
+        <mesh scale={1.3}>
+          <boxGeometry args={[1.5, 1.5, 1.5]} />
+          <meshStandardMaterial color="#00ff66" wireframe emissive="#00ff66" emissiveIntensity={2} />
+        </mesh>
+        <mesh scale={0.9}>
+          <icosahedronGeometry args={[1, 1]} />
+          <meshPhysicalMaterial color="#051505" metalness={0.8} roughness={0.2} transmission={0.5} />
+        </mesh>
+        <group ref={orbitRef}>
+          {[0, 1, 2, 3].map(i => {
+            const a = (i / 4) * Math.PI * 2
+            return <mesh key={i} position={[Math.cos(a) * 1.6, Math.sin(a) * 1.6, 0]} scale={0.12}>
+              <boxGeometry args={[1, 1, 1]} />
+              <meshStandardMaterial color="#00ff66" emissive="#00ff66" emissiveIntensity={3} />
+            </mesh>
+          })}
+        </group>
+      </group>
+    )
+  }
+
+  // ── 19. Cosmic Planet / DNA / Gyroscope Atom (Universal Dyson Sphere) ─────
+  const isPlanet = objType === 'planet' || objType === 'particles'
+  const isDna = objType === 'dna'
 
   return (
     <group ref={groupRef}>
-      <mesh scale={isPlanet ? 1.35 : 1.12}>
-        {isCrystal ? <octahedronGeometry args={[1, 1]} /> : isNeural ? <icosahedronGeometry args={[1, 2]} /> : <torusKnotGeometry args={[0.82, 0.25, 160, 24]} />}
-        <meshPhysicalMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={0.52} metalness={0.72} roughness={0.16} transmission={isCrystal ? 0.32 : 0} transparent={isCrystal} opacity={0.92} wireframe={isNeural} />
+      {/* Central Plasma Sphere */}
+      <mesh scale={isPlanet ? 1.4 : 1.1}>
+        <sphereGeometry args={[1, 32, 32]} />
+        <meshPhysicalMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={0.8} metalness={0.7} roughness={0.15} transmission={0.4} transparent opacity={0.92} wireframe={isDna} />
       </mesh>
-      <mesh rotation={[0.55, 0.2, 0]} scale={isPlanet ? 1.7 : 1.46}>
-        <torusGeometry args={[1, 0.035, 16, 96]} />
-        <meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={1.8} transparent opacity={0.82} />
+      {/* Intersecting Gyroscope Rings */}
+      <mesh rotation={[0.5, 0.2, 0]} scale={isPlanet ? 1.75 : 1.45}>
+        <torusGeometry args={[1, 0.04, 16, 96]} />
+        <meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={2.2} />
       </mesh>
+      <mesh rotation={[-0.5, 1.2, 0]} scale={isPlanet ? 1.95 : 1.65}>
+        <torusGeometry args={[1, 0.03, 16, 96]} />
+        <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={2.5} />
+      </mesh>
+      {/* Orbiting Beacons */}
       <group ref={orbitRef}>
         {[0, 1, 2, 3, 4, 5].map(index => {
           const angle = (index / 6) * Math.PI * 2
-          return <mesh key={index} position={[Math.cos(angle) * 1.72, Math.sin(angle) * 1.72, Math.sin(angle * 2) * 0.45]} scale={0.09 + (index % 2) * 0.04}>
+          return <mesh key={index} position={[Math.cos(angle) * 1.8, Math.sin(angle) * 1.8, Math.sin(angle * 2) * 0.5]} scale={0.1}>
             <sphereGeometry args={[1, 16, 16]} />
-            <meshStandardMaterial color={index % 2 ? palette.accent : palette.secondary} emissive={index % 2 ? palette.accent : palette.secondary} emissiveIntensity={2} />
+            <meshStandardMaterial color={index % 2 ? palette.accent : "#ffffff"} emissive={index % 2 ? palette.accent : "#ffffff"} emissiveIntensity={3} />
           </mesh>
         })}
       </group>
-      <mesh scale={0.34}>
-        <sphereGeometry args={[1, 32, 32]} />
-        <meshStandardMaterial color={palette.accent} emissive={palette.accent} emissiveIntensity={2.2} />
-      </mesh>
     </group>
   )
 }
 
-function ScrollDrivenWebGLScene({ palette, size, objType }) {
+function ScrollDrivenWebGLScene({ palette, size, objType, modelUrl }) {
   const hostRef = useRef(null)
   const [progress, setProgress] = useState(0)
   useEffect(() => {
@@ -718,44 +1365,137 @@ function ScrollDrivenWebGLScene({ palette, size, objType }) {
     scroller.addEventListener('scroll', update, { passive: true })
     return () => scroller.removeEventListener('scroll', update)
   }, [])
-  return <div ref={hostRef} style={{ width: size, height: size }}><Canvas camera={{ position: [0, 0, 5.4], fov: 46 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}><ambientLight intensity={0.42} /><pointLight position={[4, 4, 5]} intensity={25} color={palette.primary} /><pointLight position={[-4, -2, 3]} intensity={18} color={palette.secondary} /><pointLight position={[0, -4, 2]} intensity={12} color={palette.accent} /><ScrollReactiveObject palette={palette} objType={objType} progress={progress} /></Canvas></div>
+  return (
+    <div ref={hostRef} style={{ width: size, height: size }}>
+      <Canvas camera={{ position: [0, 0, 5.4], fov: 46 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}>
+        <ambientLight intensity={0.5} />
+        <directionalLight position={[5, 5, 5]} intensity={1.5} />
+        <pointLight position={[4, 4, 5]} intensity={25} color={palette.primary} />
+        <pointLight position={[-4, -2, 3]} intensity={18} color={palette.secondary} />
+        <pointLight position={[0, -4, 2]} intensity={12} color={palette.accent} />
+        {modelUrl ? (
+          <Suspense fallback={<ScrollReactiveObject palette={palette} objType={objType} progress={progress} />}>
+            <ExternalGLTFModel url={modelUrl} />
+          </Suspense>
+        ) : (
+          <ScrollReactiveObject palette={palette} objType={objType} progress={progress} />
+        )}
+      </Canvas>
+    </div>
+  )
 }
 
 function ScrollReactiveObject({ palette, objType, progress }) {
   const groupRef = useRef(null)
-  const orbitRef = useRef(null)
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
     if (groupRef.current) {
-      groupRef.current.rotation.y = t * 0.35 + progress * Math.PI * 4
-      groupRef.current.rotation.x = Math.sin(t * 0.5) * 0.12 + progress * 0.7
-      groupRef.current.position.x = Math.sin(progress * Math.PI * 2) * 0.9
-      groupRef.current.position.y = Math.cos(progress * Math.PI * 3) * 0.35
-      groupRef.current.scale.setScalar(0.9 + progress * 0.55)
+      groupRef.current.rotation.y = t * 0.35 + progress * Math.PI * 2
+      groupRef.current.rotation.x = Math.sin(t * 0.5) * 0.12 + progress * 0.4
+      groupRef.current.position.y = Math.sin(t * 1.1) * 0.2
+      groupRef.current.scale.setScalar(0.9 + progress * 0.45)
     }
-    if (orbitRef.current) orbitRef.current.rotation.z = t * 0.45 - progress * Math.PI * 6
   })
-  const geometry = objType === 'planet' ? <sphereGeometry args={[1.15, 48, 48]} /> : objType === 'crystal' ? <octahedronGeometry args={[1.28, 1]} /> : <torusKnotGeometry args={[0.8, 0.22, 160, 24]} />
-  return <group ref={groupRef}><mesh>{geometry}<meshPhysicalMaterial color={palette.primary} emissive={palette.primary} emissiveIntensity={0.5} metalness={0.7} roughness={0.14} transmission={objType === 'crystal' ? 0.35 : 0} /></mesh><mesh rotation={[0.8, 0.2, 0]} scale={1.55}><torusGeometry args={[1, 0.035, 16, 96]} /><meshStandardMaterial color={palette.secondary} emissive={palette.secondary} emissiveIntensity={2} /></mesh><group ref={orbitRef}>{Array.from({ length: 10 }, (_, index) => { const angle = (index / 10) * Math.PI * 2; return <mesh key={index} position={[Math.cos(angle) * 1.75, Math.sin(angle) * 1.75, Math.sin(angle * 3) * 0.45]} scale={0.06 + (index % 3) * 0.025}><sphereGeometry args={[1, 12, 12]} /><meshStandardMaterial color={index % 2 ? palette.accent : palette.secondary} emissive={index % 2 ? palette.accent : palette.secondary} emissiveIntensity={2} /></mesh> })}</group></group>
+  return (
+    <group ref={groupRef}>
+      <GeneratedWebGLObject palette={palette} objType={objType} />
+    </group>
+  )
 }
-function PreviewScrollChapter({ palette, scale, objType, websiteName }) {
+
+function PreviewScrollChapter({ palette, scale, objType, websiteName, modelUrl }) {
+  const hash = Array.from((websiteName || 'default') + (objType || '')).reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const chapterLayouts = ['split', 'split-reverse', 'center-stage', 'card-float']
+  const layout = chapterLayouts[hash % chapterLayouts.length]
+
+  const chapterData = {
+    food: { title: "Crafted with Passion & Flavor.", sub: "Every dish is a culinary masterpiece, prepared fresh for your delight." },
+    robot: { title: "Autonomous Cybernetic Intelligence.", sub: "Powered by neural algorithms that learn, adapt, and evolve in real-time." },
+    travel: { title: "Your Next Great Adventure Awaits.", sub: "Explore breathtaking destinations and VIP journeys curated just for you." },
+    beauty: { title: "Timeless Elegance & Radiance.", sub: "Indulge in bespoke luxury experiences designed to elevate your everyday." },
+    pet: { title: "Compassionate Care for Best Friends.", sub: "Because your beloved pets deserve a safe, joyful, and healthy sanctuary." },
+    eco: { title: "Engineering a Green Tomorrow.", sub: "Harnessing sustainable earth energy to power the next generation." },
+    education: { title: "Empowering Minds Through Knowledge.", sub: "Unlock limitless learning potential with world-class education." },
+    legal: { title: "Unwavering Excellence & Integrity.", sub: "Strategic guidance and proven leadership to secure your future." },
+    gaming: { title: "Immersive Next-Gen Performance.", sub: "Experience ultra-low latency, stunning graphics, and competitive glory." },
+    crypto: { title: "Decentralized Financial Freedom.", sub: "Fast, secure, and transparent blockchain transactions worldwide." },
+    car: { title: "Precision Engineering & Raw Speed.", sub: "Aerodynamic perfection meets unmatched automotive horsepower." },
+    spiderman: { title: "With Great Power Comes Great Design.", sub: "Step into a universe of legendary heroism and action-packed thrill." },
+    airpods: { title: "Pure Acoustic Immersion.", sub: "Crystal-clear high-fidelity sound engineered for spatial audio perfection." },
+  }
+  const data = chapterData[objType] || {
+    title: "An object that evolves as the story unfolds.",
+    sub: `This generated WebGL scene is live, continuously animated, and framed as part of the journey for ${websiteName}.`
+  }
+
+  const badge = (
+    <div style={{ color: palette.secondary, fontSize: 10 * scale, fontWeight: 800, letterSpacing: '0.16em', marginBottom: 12 * scale, textTransform: 'uppercase' }}>
+      ✦ CHAPTER 02 // {objType?.toUpperCase() || 'LIVE'}
+    </div>
+  )
+
+  const textBlock = (
+    <div>
+      {badge}
+      <h2 style={{ margin: 0, color: palette.text, fontSize: 36 * scale, lineHeight: 1.1, fontFamily: 'Syne, sans-serif' }}>{data.title}</h2>
+      <p style={{ margin: `${16 * scale}px 0 0`, color: palette.text + 'a8', fontSize: 15 * scale, lineHeight: 1.65 }}>{data.sub}</p>
+    </div>
+  )
+
+  const webglBlock = (
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: 310 * scale }}>
+      <ScrollDrivenWebGLScene palette={palette} size={Math.min(350 * scale, 360)} objType={objType} modelUrl={modelUrl} />
+    </div>
+  )
+
   return (
     <motion.section
-      initial={{ opacity: 0.2, scale: 0.94 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ amount: 0.35 }}
+      initial={{ opacity: 0.2, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ amount: 0.25 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-      style={{ minHeight: 430 * scale, position: 'relative', overflow: 'hidden', display: 'grid', placeItems: 'center', padding: 34 * scale, background: `radial-gradient(circle at 50% 45%, ${palette.primary}35, ${palette.background} 68%)`, borderTop: `1px solid ${palette.primary}25`, borderBottom: `1px solid ${palette.primary}25` }}
+      style={{
+        minHeight: 450 * scale, position: 'relative', overflow: 'hidden',
+        display: 'grid', placeItems: 'center', padding: `${48 * scale}px ${36 * scale}px`,
+        background: layout === 'card-float'
+          ? `linear-gradient(135deg, ${palette.background}, ${palette.primary}15)`
+          : `radial-gradient(circle at 50% 45%, ${palette.primary}25, ${palette.background} 75%)`,
+        borderTop: `1px solid ${palette.primary}25`, borderBottom: `1px solid ${palette.primary}25`
+      }}
     >
-      <div style={{ position: 'absolute', inset: 0, opacity: 0.18, backgroundImage: `linear-gradient(${palette.primary}20 1px, transparent 1px), linear-gradient(90deg, ${palette.primary}20 1px, transparent 1px)`, backgroundSize: `${28 * scale}px ${28 * scale}px` }} />
-      <motion.div whileInView={{ y: [20, 0], opacity: [0, 1] }} viewport={{ amount: 0.4 }} transition={{ duration: 0.8 }} style={{ position: 'relative', zIndex: 1, width: '100%', display: 'grid', gridTemplateColumns: '1fr 1.15fr', alignItems: 'center', gap: 28 * scale }}>
-        <div>
-          <div style={{ color: palette.secondary, fontSize: 10 * scale, fontWeight: 800, letterSpacing: '0.16em', marginBottom: 12 * scale }}>SCROLL CHAPTER 02</div>
-          <h2 style={{ margin: 0, color: palette.text, fontSize: 36 * scale, lineHeight: 1, fontFamily: 'Syne, sans-serif' }}>An object that evolves as the story unfolds.</h2>
-          <p style={{ margin: `${16 * scale}px 0 0`, color: palette.text + 'a8', fontSize: 14 * scale, lineHeight: 1.65 }}>This generated scene is live WebGL, continuously animated, and framed as part of the page’s scroll journey for {websiteName}.</p>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.15, backgroundImage: `linear-gradient(${palette.primary}20 1px, transparent 1px), linear-gradient(90deg, ${palette.primary}20 1px, transparent 1px)`, backgroundSize: `${28 * scale}px ${28 * scale}px` }} />
+
+      {layout === 'split-reverse' && (
+        <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100 * scale, display: 'grid', gridTemplateColumns: '1.15fr 1fr', alignItems: 'center', gap: 36 * scale }}>
+          {webglBlock}
+          {textBlock}
         </div>
-        <div style={{ display: 'grid', placeItems: 'center', minHeight: 310 * scale }}><ScrollDrivenWebGLScene palette={palette} size={Math.min(350 * scale, 360)} objType={objType} /></div>
-      </motion.div>
+      )}
+
+      {layout === 'center-stage' && (
+        <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 900 * scale, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 * scale }}>
+          {textBlock}
+          <div style={{ width: '100%' }}>{webglBlock}</div>
+        </div>
+      )}
+
+      {layout === 'card-float' && (
+        <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1000 * scale, display: 'grid', gridTemplateColumns: '1fr 1fr', alignItems: 'center', gap: 30 * scale }}>
+          <motion.div whileHover={{ scale: 1.02 }} style={{ background: palette.background + 'e6', border: `1px solid ${palette.primary}40`, borderRadius: 24 * scale, padding: 36 * scale, boxShadow: `0 20px 50px rgba(0,0,0,0.3)` }}>
+            {textBlock}
+          </motion.div>
+          <div style={{ background: `radial-gradient(circle, ${palette.secondary}20, transparent 70%)`, borderRadius: 24 * scale, padding: 16 * scale }}>
+            {webglBlock}
+          </div>
+        </div>
+      )}
+
+      {(layout === 'split' || !chapterLayouts.includes(layout)) && (
+        <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100 * scale, display: 'grid', gridTemplateColumns: '1fr 1.15fr', alignItems: 'center', gap: 36 * scale }}>
+          {textBlock}
+          {webglBlock}
+        </div>
+      )}
     </motion.section>
   )
 }

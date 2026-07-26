@@ -1,186 +1,95 @@
 import { NextResponse } from 'next/server'
-import { resolveUserCredits, incrementBuildCount, generateWithModel } from '@lib/ai-clients'
-import { classifyIndustry, getVariation } from '@lib/blueprint-helpers'
+import { resolveUserCredits, incrementBuildCount, generateWithModel, parseModelJson } from '@lib/ai-clients'
 
-const SYSTEM = `You are Getartifact — a world-class AI creative director, 3D web designer, React developer, and motion designer. You generate render-ready website blueprints.
+const SYSTEM = `You are Getartifact — an award-winning senior creative director, UI/UX architect, and 3D web designer.
+Your task is to generate a rich, highly dynamic, custom website visual blueprint for the user's prompt.
 
-OUTPUT RULE: Return ONLY a valid JSON object. No markdown, no code blocks, no comments, no extra text.
+PRIME DIRECTIVE: NEVER reuse the same website structure, text, colors, or 3D visual. Every single website generated MUST be completely custom-tailored to the user's exact domain, industry, and prompt!
 
-VISUAL RICHNESS RULE: Do not limit layout designs to only 3D components and simple text. Blueprints must specify and mix rich media (such as high-quality photography, product mockups, vector illustrations, and card grids) with the interactive 3D elements to make websites feel organic, fully featured, and premium. Use realistic image descriptions/sources where applicable.
+1. 3D VISUAL ENGINE:
+Pick the most striking 3D object type from this list that matches the user's topic:
+- "orbital" (orbiting rings, tech hubs, planetary rings, saas platforms)
+- "crystal" (gemstones, diamonds, luxury shards, crypto prisms, finance)
+- "neural" (AI networks, brain synapses, connected nodes, data science)
+- "dna" (bio-helices, medical strands, organic molecules, healthcare)
+- "particles" (floating starfields, magical dust, energy clouds, creative studios)
+- "planet" (earth, space spheres, globes, cosmos, travel, sustainability)
+- "torus" (twisted knots, geometric sculptures, creative art, design agencies)
+- "hologram" (wireframe projections, cyber HUDs, futuristic grids, security)
+- "warp" (wormholes, speed tunnels, time portals, automotive, gaming)
+- "morph" (liquid metal, lava blobs, organic fluid shapes, modern fashion)
+- "matrix" (digital rain, code cascades, hacker streams, developer tools)
+- "icosa" (polyhedrons, geometric prisms, architectural shapes, real estate)
 
-════════════════════════════════════════
-MASTER PROMPT — 20 RULES FOR UNIQUE WEBSITES
-════════════════════════════════════════
+2. HERO LAYOUT ENGINE:
+Pick one layout archetype (randomize and match brand vibe):
+- "split" (50/50 left text, right 3D interactive subject)
+- "centered" (cinematic centered headline over immersive background 3D canvas)
+- "magazine" (editorial typographic grid with bold oversized headlines)
+- "minimal" (clean luxury Scandinavian whitespace with floating 3D accent)
 
-RULE 1 — LAYOUT ARCHETYPE (pick the one injected in USER message):
-  Layout-A: Fullscreen 3D scene covers entire viewport. Floating navbar overlaid. CTAs appear on glassmorphism panels over the scene.
-  Layout-B: Exact 50/50 split. Left = bold headline + CTA stack. Right = interactive 3D scene. Edge-to-edge, zero hero padding.
-  Layout-C: No hero. Opens with oversized editorial typography across full-width grid. Asymmetric blocks, mixed columns, images break the grid.
-  Layout-D: Bento grid. Differently-sized interactive cards fill viewport. Each card = 3D mini-scene, stat, or feature. No traditional hero.
-  Layout-E: Huge whitespace. Single centred headline 96-128px. Subtitle. One CTA. 3D object floats below fold. Every section is a full-page breathable moment.
-  Layout-F: Dark dashboard. Left sidebar nav. Right = floating panel widgets with 3D data viz, stats, live counters.
-  Layout-G: Horizontal scrolling timeline. Each panel = brand story chapter. Progress bar at top. 3D objects transform between chapters.
-  Layout-H: Scroll-snap storytelling. Every snap changes ENTIRE screen layout + colour. Section 1=hero, 2=problem, 3=solution. Dramatic transitions.
-  Layout-I: Circular navigation hub. Content orbits the centre. Clicking nav item rotates wheel to reveal section. 3D scene is the hub.
-  Layout-J: Zoomable pannable canvas. Elements float at different depths. Users drag to explore. Clusters of related content.
+3. COLOR PALETTE ENGINE:
+Tailor the hex colors specifically to the mood and industry (e.g. bakery/food = warm golden cream, cocoa brown & honey yellow; crypto/tech = electric neon cyan, violet & dark void black; luxury fashion = ivory, rose gold & velvet black; eco/nature = forest green, sage & warm earth; fitness = electric orange, crimson & deep carbon). Ensure high contrast between background and text!
 
-RULE 2 — DESIGN LANGUAGE: Every project gets a new design language. Vary: typography scale, spacing rhythm, border radius, grid, card design, shadow system, glass effect, dark/light mode preference.
+4. SECTION GENERATOR (Generate 3 to 5 unique sections):
+NEVER generate generic "Why Us" or "Instant Performance" unless the site is a generic cloud platform.
+If the prompt is about a coffee shop or restaurant, generate sections like: "Artisanal Blends" (features), "Our Roast Process" (process), "Customer Reviews" (testimonials).
+If the prompt is about an AI startup, generate sections like: "Autonomous Agents" (features), "10x Speed Multiplier" (stats), "Enterprise Pricing" (pricing).
+Supported section types: "features" | "stats" | "testimonials" | "pricing" | "cta" | "process" | "faq" | "about".
 
-RULE 3 — COLOR PALETTE: Use the palette injected in USER. Palette styles: Cyberpunk (neon on black), Minimal White (off-white + one bold accent), Nature Green (earth tones), Luxury Black (gold on near-black), Pastel (soft pinks/blues), Retro (orange/brown/cream), Neon Synthwave (purple/magenta), Ocean Blue (deep teal), Monochrome, Fire Red/Orange.
+OUTPUT RULE: Return ONLY a valid JSON object matching the exact schema below. No markdown fences, no comments, no extra text.
 
-RULE 4 — NAVIGATION: Vary per prompt. Options: top-bar transparent → solid on scroll, sidebar vertical, floating dock centered, bottom mobile nav, circular radial menu, hamburger overlay fullscreen, animated underline tabs, expandable mega-menu, sticky minimal logo+CTA only.
-
-RULE 5 — HERO TYPE: Vary per prompt. Options: centered text + 3D, video background, pure 3D interactive (no text in viewport), horizontal scrolling reveal, split-screen, interactive particle/mouse, parallax depth layers, giant typography only, full-bleed image + overlay, carousel autoplay.
-
-RULE 6 — SECTIONS: Pick 6–10 from: About/Mission, Features grid, Services list, Gallery/portfolio, Timeline history, Pricing table, FAQ accordion, Testimonials, Team, Blog preview, Stats counter, Map/location, Contact form, CTA banner, Newsletter, Process steps, Partners logos, Before/After slider, Video showcase, Awards/press.
-
-RULE 7 — SCROLL EXPERIENCE: Choose one: smooth inertia (Lenis), pinned section sequence, horizontal panel scroll, parallax multi-layer, snap full-page, infinite loop, story-driven chapter scroll, GSAP ScrollTrigger, Framer Motion viewport.
-
-RULE 8 — ANIMATION LANGUAGE: Choose one dominant style: morphing shapes, floating gravity, physics collisions, elastic spring, magnetic cursor follow, hover distortion warp, particle burst on click, smoke/fluid sim, liquid metal, 3D perspective tilt.
-
-RULE 9 — 3D EXPERIENCE: Match the 3D scene to the industry. Examples: tech → abstract data sculpture / AI brain / particle network; restaurant → 3D food model / kitchen scene; gym → human anatomy / weight physics; crypto → blockchain lattice / coin orbit; music → 3D speaker / audio waveform; fashion → 3D mannequin / fabric sim; travel → 3D globe / airplane; architecture → 3D building walkthrough; gaming → character rig / level map; nature → 3D forest / terrain; medical → DNA helix / cell model.
-
-RULE 10 — BACKGROUND: Choose one: pure solid dark, gradient mesh animated, dot/grid pattern, noise texture overlay, video loop, 3D environment fog, star field, geometric line grid, aurora gradient, bokeh blur.
-
-RULE 11 — CARD STYLE: Choose one: glassmorphism frosted, neumorphism soft-shadow, hard border brutalist, gradient border glow, minimal borderless, 3D perspective hover, floating with drop-shadow, tile mosaic.
-
-RULE 12 — BUTTON STYLE: Choose one: pill gradient, sharp rectangular with border, ghost outline hover-fill, animated underline text, 3D pressed effect, neon glow pulse, magnetic hover drift, split diagonal fill.
-
-RULE 13 — FOOTER: Choose one: minimal single-line, large editorial with brand statement, dark full-grid with social links, sticky bottom bar, call-to-action footer with 3D element, newsletter-first, sitemap columns, animated gradient footer.
-
-RULE 14 — CURSOR: Choose one: custom dot + ring follower, magnetic snap to buttons, trail particle effect, color-invert spotlight, 3D object orbits cursor, hidden (touch-optimized), crosshair precision, animated SVG morph.
-
-RULE 15 — MICRO-INTERACTIONS: Include 3+: button hover state, link underline draw, card lift on hover, counter number roll, input field focus glow, scroll progress indicator, page transition fade, toast notification, loading skeleton, icon rotate on hover.
-
-RULE 16 — LAYOUT COMPOSITION: Each section must have a unique composition. Vary: full-bleed edge-to-edge vs constrained container, asymmetric columns, overlapping elements, negative space, bleed images, rotated elements, diagonal cuts, staggered grids.
-
-RULE 17 — COMPONENT ORDER: Randomize section order to avoid formulaic pages. Do NOT always follow: Hero → Features → Pricing → Testimonials → CTA. Try: Hero → Stats → Gallery → Problem → Solution → Testimonials → Pricing → FAQ → CTA, or other non-default orderings.
-
-RULE 18 — AI INDUSTRY MATCHING: Match UI style to industry:
-  restaurant/food → warm palette, food gallery, reservation CTA, serif typography
-  gaming/esports → cyberpunk neon, particle effects, countdown timer, bold condensed font
-  finance/crypto → trust signals, dashboard panels, dark conservative, mono font
-  health/wellness → clean minimal, pastel, breathing animation, rounded cards
-  fashion/luxury → editorial layout, high contrast, serif/script mix, white space
-  music/events → high energy, bold color, ticket CTA, distorted typography
-  tech/SaaS → futuristic, glass panels, feature grid, gradient accent
-  education → friendly, bright, progress indicators, card curriculum
-  real-estate → full-bleed photography, map integration, property cards
-  travel → panoramic imagery, globe 3D, destination cards, adventure tone
-
-RULE 19 — DIVERSITY SCORE (internal validation before responding):
-  - layout_similarity_to_previous < 20%
-  - color_similarity < 20%
-  - animation_similarity < 20%
-  - typography_similarity < 20%
-  - component_order_similarity < 20%
-  - 3d_scene_similarity < 20%
-  If ANY score ≥ 20%, regenerate that dimension with a different choice before outputting.
-
-RULE 20 — ANTI-TEMPLATE RULE: If only the name, colors, and text changed from a generic SaaS template, the generation has FAILED. Invent a completely fresh UI concept, fresh layout system, fresh 3D scene, fresh motion style, and fresh section structure.
-
-════════════════════════════════════════
-JSON SCHEMA (follow exactly):
-════════════════════════════════════════
+JSON SCHEMA:
 {
-  "creative_concept": {
-    "website_name": "",
-    "business_type": "",
-    "target_audience": "",
-    "design_big_idea": "",
-    "why_this_design_fits": "",
-    "layout_archetype": "",
-    "visual_signature": "",
-    "diversity_score": { "layout": 0, "color": 0, "animation": 0, "typography": 0, "component_order": 0, "3d_scene": 0 },
-    "must_not_look_like": []
+  "website_name": "Unique Brand Name",
+  "business_type": "Specific Industry / Domain",
+  "design_style": "Visual style description",
+  "color_palette": {
+    "primary": "#hex",
+    "secondary": "#hex",
+    "accent": "#hex",
+    "background": "#hex",
+    "text": "#hex"
   },
-  "design_system": {
-    "color_palette": {
-      "primary": "#hex",
-      "secondary": "#hex",
-      "accent": "#hex",
-      "background": "#hex",
-      "surface": "#hex",
-      "text": "#hex",
-      "palette_style": ""
-    },
-    "typography": {
-      "heading_font": "",
-      "body_font": "",
-      "type_style": "",
-      "heading_weight": "",
-      "heading_size_hero": ""
-    },
-    "ui_style": {
-      "navigation_style": "",
-      "hero_type": "",
-      "button_style": "",
-      "card_style": "",
-      "section_style": "",
-      "background_style": "",
-      "cursor_style": "",
-      "scroll_experience": "",
-      "footer_style": ""
-    },
-    "animation": {
-      "dominant_style": "",
-      "scroll_trigger": "",
-      "hover_effect": "",
-      "page_transition": "",
-      "micro_interactions": []
-    }
+  "typography": {
+    "heading_font": "Syne | Outfit | Playfair Display | Space Grotesk | Cinzel | Montserrat | Clash Display",
+    "body_font": "Inter | Roboto | Plus Jakarta Sans | DM Sans | Lato | Satoshi"
   },
-  "cinematic_3d_scene": {
-    "scene_name": "",
-    "scene_purpose": "",
-    "scene_type": "",
-    "main_3d_subject": "",
-    "supporting_objects": [],
-    "environment": "",
-    "materials": [],
-    "lighting": "",
-    "camera_motion": "",
-    "animation_loop": "",
-    "user_interaction": "",
-    "appears_in_section": "hero",
-    "three_js_components": [],
-    "implementation_description": ""
+  "navbar": {
+    "logo": "Brand Name",
+    "links": ["Link 1", "Link 2", "Link 3", "Link 4"]
   },
   "hero": {
-    "layout": "",
-    "headline": "",
-    "subheadline": "",
-    "primary_cta": "",
-    "secondary_cta": "",
-    "3d_integration": "",
-    "animation_style": "",
-    "background_treatment": ""
+    "headline": "Captivating, domain-specific primary headline (3-7 words)",
+    "subheadline": "Persuasive subheadline explaining the unique value proposition (10-20 words)",
+    "cta_primary": "Action-oriented button text",
+    "cta_secondary": "Secondary action text",
+    "layout": "split | centered | magazine | minimal",
+    "background_type": "gradient_mesh | blobs | radial | editorial",
+    "animation": "particle_float | magnetic_hover | pulse_glow",
+    "three_d_object": {
+      "type": "spiderman | airpods | car | watch | orbital | crystal | neural | dna | particles | planet | torus | hologram | warp | morph | matrix | icosa",
+      "material": "glass | metallic | hologram | wireframe | neon",
+      "animation": "slow_rotation | floating | pulse"
+    }
   },
   "sections": [
     {
-      "id": "",
-      "type": "",
-      "title": "",
-      "subtitle": "",
-      "layout": "",
-      "content": [],
-      "visual_treatment": "",
-      "animation": "",
-      "3d_element": "",
-      "composition": ""
+      "id": "unique-section-1",
+      "type": "features | stats | testimonials | pricing | cta | process | faq | about",
+      "title": "Creative Section Heading",
+      "subtitle": "ENGAGING SUBTITLE",
+      "content": [
+        { "icon": "✨", "title": "Specific Feature Title", "description": "Detailed explanation relevant to the user prompt." },
+        { "icon": "🔥", "title": "Another Feature", "description": "Tailored domain content." }
+      ],
+      "animation": "slide_up | count_up | fade_in"
     }
   ],
-  "pages": [
-    { "name": "", "path": "", "purpose": "", "unique_layout": "", "sections": [] }
-  ],
-  "code_generation_rules": {
-    "hero_component": "Custom hero matching hero.layout and hero.animation_style. Never reuse a fixed hero template.",
-    "three_scene_component": "Custom React Three Fiber scene from cinematic_3d_scene. No generic defaults.",
-    "layout_rule": "Every section uses the selected layout_archetype and business context.",
-    "content_rule": "All copy specific to this business. No generic SaaS placeholder text.",
-    "scroll_rule": "Implement scroll_experience from design_system.ui_style.",
-    "animation_rule": "Apply animation.dominant_style throughout. Include all micro_interactions listed.",
-    "anti_template_rule": "If only colors, name, and text changed from a generic template, this is a FAILURE. Regenerate."
+  "footer": {
+    "tagline": "Brand tagline",
+    "text": "© 2026 Brand. All rights reserved.",
+    "links": ["Privacy Policy", "Terms of Service", "Contact Us"]
   }
 }`
 
@@ -205,46 +114,222 @@ export async function POST(req) {
     }
 
     const plan = credits?.plan ?? 'free'
-    const industry = classifyIndustry(prompt)
-    const { style, threeDObj, threeDObj2, layout, animation, palette } = getVariation(industry)
 
-    const USER = `Generate a UNIQUE, SPECIFIC website blueprint for this exact business:
+    const USER = `Generate a stunning, completely unique website visual blueprint for this prompt:
 "${prompt}"
 
-ASSIGNED VARIATION PARAMETERS — implement ALL of these in the output:
-- Industry: ${industry}
-- Visual style: "${style}"
-- Layout archetype: "${layout}"
-- Primary 3D object: "${threeDObj}"
-- Secondary 3D object: "${threeDObj2}"
-- Animation style: "${animation}"
-- Colors: background ${palette.bg} | primary ${palette.primary} | secondary ${palette.secondary} | accent ${palette.accent} | text ${palette.text}
+Make sure the colors, typography, 3D object type, hero layout, and section text are 100% specific to "${prompt}". Do not use generic tech placeholders!`
 
-CONTENT REQUIREMENTS (all must be specific to this business, never generic):
-1. website_name: memorable brand name (never "TechCorp", "StartupAI", "InnovateCo")
-2. hero.headline: punchy tagline for THIS exact business (never "Build Faster" / "Scale Better")
-3. hero.subheadline: specific value proposition for this ${industry} business
-4. sections: 6–10 sections in non-formulaic order
-5. features/services: directly relevant to ${industry} — real capabilities
-6. stats: 4 metrics with numbers that make sense for a ${industry} business
-7. testimonials: 3 testimonials from real-sounding ${industry} customers
-8. pricing: 3 tiers appropriate for ${industry} (if applicable)
-9. navbar links: industry-appropriate (restaurant → Menu, Reservations, About; SaaS → Product, Pricing, Docs)
-10. 3D scene: a scene specific to ${industry} per Rule 9 — not a generic sphere or torus
+    let result = null
 
-Return ONLY the JSON object — no other text.`
-
-    const raw = await generateWithModel(plan, SYSTEM, USER)
-    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-    const websiteBlueprint = JSON.parse(clean)
-
-    if (credits?.sb && credits.userId) {
-      incrementBuildCount(credits.sb, credits.userId)
+    try {
+      const raw = await generateWithModel(plan, SYSTEM, USER)
+      result = parseModelJson(raw)
+    } catch (llmErr) {
+      console.warn('[generate-website-blueprint] AI generation failed, using dynamic procedural fallback:', llmErr.message)
+      result = buildDynamicFallback(prompt)
     }
 
-    return NextResponse.json({ websiteBlueprint, plan })
+    if (!result || !result.hero || !result.sections) {
+      result = buildDynamicFallback(prompt)
+    }
+
+    return NextResponse.json({ websiteBlueprint: result })
   } catch (err) {
     console.error('[generate-website-blueprint]', err.message)
     return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
+// Procedural dynamic fallback tailored to prompt keywords if AI is temporarily unreachable
+function buildDynamicFallback(prompt) {
+  const p = (prompt ?? '').toLowerCase()
+  
+  let type = 'orbital', bg = '#0a0a14', primary = '#3d5eff', secondary = '#00d4ff', accent = '#bf5fff'
+  let layout = 'split', headingFont = 'Syne', businessType = 'Technology'
+  let sections = []
+
+  if (/spider|marvel|hero|comic|avenger|batman|super/i.test(p)) {
+    type = 'spiderman'; bg = '#06060c'; primary = '#e60026'; secondary = '#0055ff'; accent = '#ff003c'
+    layout = 'split'; headingFont = 'Clash Display'; businessType = 'Superhero & Comics'
+    sections = [
+      {
+        id: 'powers', type: 'features', title: 'Web-Slinging Tech', subtitle: 'WITH GREAT POWER',
+        content: [
+          { icon: '🕸️', title: 'Organic Webbing', description: 'High-tensile synthetic polymers stronger than steel wire.' },
+          { icon: '🕷️', title: 'Spider-Sense AI', description: 'Early warning predictive threat perception engine.' },
+          { icon: '⚡', title: 'Wall-Crawling Grip', description: 'Molecular electrostatic adhesion on any urban surface.' }
+        ],
+        animation: 'slide_up'
+      },
+      {
+        id: 'stats', type: 'stats', title: 'Hero Record', subtitle: 'CITY PROTECTED',
+        content: [
+          { value: '1,400+', label: 'Citizens Saved' }, { value: '0', label: 'Villains Escaped' },
+          { value: '300 mph', label: 'Web Velocity' }, { value: '24/7', label: 'Vigilance' }
+        ],
+        animation: 'count_up'
+      }
+    ]
+  } else if (/airpod|earbud|headphone|audio|sound|music|podcast|speaker/i.test(p)) {
+    type = 'airpods'; bg = '#09090b'; primary = '#ffffff'; secondary = '#0071e3'; accent = '#2997ff'
+    layout = 'centered'; headingFont = 'Inter'; businessType = 'Audio & Tech'
+    sections = [
+      {
+        id: 'features', type: 'features', title: 'Acoustic Perfection', subtitle: 'SOUND REIMAGINED',
+        content: [
+          { icon: '🎧', title: 'Active Noise Cancellation', description: 'Silences the world with dual-beamforming microphones.' },
+          { icon: '✨', title: 'Spatial Audio', description: 'Personalized 3D theater-like surround sound tracking.' },
+          { icon: '🔋', title: '30-Hour Battery', description: 'All-day listening with the MagSafe charging case.' }
+        ],
+        animation: 'slide_up'
+      },
+      {
+        id: 'stats', type: 'stats', title: 'Acoustic Specs', subtitle: 'THE HARDWARE',
+        content: [
+          { value: '2x', label: 'More Noise Cancelling' }, { value: '30 hrs', label: 'Total Listening Time' },
+          { value: 'H2', label: 'Custom Bionic Chip' }, { value: '<1ms', label: 'Audio Latency' }
+        ],
+        animation: 'count_up'
+      }
+    ]
+  } else if (/car|auto|racing|vehicle|drive|motor|speed/i.test(p)) {
+    type = 'car'; bg = '#08080a'; primary = '#ff1e00'; secondary = '#ff8800'; accent = '#00f0ff'
+    layout = 'split'; headingFont = 'Space Grotesk'; businessType = 'Automotive & Racing'
+    sections = [
+      {
+        id: 'features', type: 'features', title: 'Engineered for Speed', subtitle: 'PEAK AERODYNAMICS',
+        content: [
+          { icon: '⚡', title: '0-60 in 1.8s', description: 'Instant electric torque delivered via quad-motor AWD.' },
+          { icon: '🔋', title: '520 Mile Range', description: 'Solid-state battery architecture for cross-country endurance.' },
+          { icon: '🤖', title: 'Autopilot AI', description: '360-degree neural vision processing 2,500 frames per second.' }
+        ],
+        animation: 'slide_up'
+      },
+      {
+        id: 'stats', type: 'stats', title: 'Performance Metrics', subtitle: 'TRACK TESTED',
+        content: [
+          { value: '1.8s', label: '0-60 mph' }, { value: '210 mph', label: 'Top Speed' },
+          { value: '1,020 HP', label: 'Horsepower' }, { value: '0.20 Cd', label: 'Drag Coefficient' }
+        ],
+        animation: 'count_up'
+      }
+    ]
+  } else if (/food|bakery|restaurant|cafe|coffee|pizza|cake|burger/i.test(p)) {
+    type = 'morph'; bg = '#1a120b'; primary = '#e5a93b'; secondary = '#d47a2a'; accent = '#ffc857'
+    layout = 'magazine'; headingFont = 'Playfair Display'; businessType = 'Food & Beverage'
+    sections = [
+      {
+        id: 'menu-highlights', type: 'features', title: 'Artisanal Selection', subtitle: 'HANDCRAFTED DAILY',
+        content: [
+          { icon: '☕', title: 'Specialty Roasts', description: 'Ethically sourced beans from organic high-altitude farms.' },
+          { icon: '🥐', title: 'Fresh Pastries', description: 'Baked fresh every morning using imported French butter.' },
+          { icon: '🌿', title: '100% Organic', description: 'No artificial additives, preservatives, or refined sugars.' }
+        ],
+        animation: 'slide_up'
+      },
+      {
+        id: 'stats', type: 'stats', title: 'Our Love for Craft', subtitle: 'BY THE NUMBERS',
+        content: [
+          { value: '15K+', label: 'Happy Customers' }, { value: '100%', label: 'Organic Ingredients' },
+          { value: '24/7', label: 'Fresh Baking' }, { value: '4.9★', label: 'Average Rating' }
+        ],
+        animation: 'count_up'
+      }
+    ]
+  } else if (/crypto|nft|web3|blockchain|token|defi|coin/i.test(p)) {
+    type = 'crystal'; bg = '#05050a'; primary = '#00ffcc'; secondary = '#7928ca'; accent = '#ff007a'
+    layout = 'centered'; headingFont = 'Space Grotesk'; businessType = 'Web3 & Blockchain'
+    sections = [
+      {
+        id: 'features', type: 'features', title: 'Next-Gen Protocol', subtitle: 'DECENTRALIZED POWER',
+        content: [
+          { icon: '💎', title: 'Zero-Gas Swaps', description: 'Instant liquidity execution with optimized cryptographic routing.' },
+          { icon: '🛡️', title: 'Audited Security', description: 'Multi-sig vault protection verified by leading security firms.' },
+          { icon: '⚡', title: 'Cross-Chain Bridge', description: 'Seamless asset transfer across 15+ EVM and non-EVM networks.' }
+        ],
+        animation: 'slide_up'
+      },
+      {
+        id: 'stats', type: 'stats', title: 'Protocol Volume', subtitle: 'LIVE METRICS',
+        content: [
+          { value: '$4.2B', label: 'Total Value Locked' }, { value: '350K+', label: 'Active Wallets' },
+          { value: '0.01s', label: 'Block Time' }, { value: '$0', label: 'Gas Failures' }
+        ],
+        animation: 'count_up'
+      }
+    ]
+  } else if (/gym|fitness|workout|health|yoga|sport|athlete/i.test(p)) {
+    type = 'torus'; bg = '#0d0d0d'; primary = '#ff3e00'; secondary = '#ff8c00'; accent = '#00e5ff'
+    layout = 'split'; headingFont = 'Outfit'; businessType = 'Fitness & Health'
+    sections = [
+      {
+        id: 'programs', type: 'features', title: 'Elite Training Programs', subtitle: 'PUSH YOUR LIMITS',
+        content: [
+          { icon: '🔥', title: 'HIIT Conditioning', description: 'High-intensity interval sessions designed for maximum caloric burn.' },
+          { icon: '💪', title: 'Strength & Power', description: 'Olympic lifting and functional hypertrophy coaching.' },
+          { icon: '🧘', title: 'Active Recovery', description: 'Guided mobility, cryotherapy, and deep tissue restoration.' }
+        ],
+        animation: 'slide_up'
+      },
+      {
+        id: 'stats', type: 'stats', title: 'Proven Transformations', subtitle: 'THE RESULTS',
+        content: [
+          { value: '5,000+', label: 'Lives Transformed' }, { value: '50+', label: 'Elite Coaches' },
+          { value: '100%', label: 'Commitment' }, { value: '15', label: 'Global Studio Locations' }
+        ],
+        animation: 'count_up'
+      }
+    ]
+  } else {
+    // Default dynamic modern tech
+    type = 'neural'; bg = '#07080f'; primary = '#4f7fff'; secondary = '#00e5ff'; accent = '#9f5fff'
+    layout = 'split'; headingFont = 'Syne'; businessType = 'Innovation & Technology'
+    sections = [
+      {
+        id: 'features', type: 'features', title: 'Core Capabilities', subtitle: 'BUILT FOR TOMORROW',
+        content: [
+          { icon: '🚀', title: 'Intelligent Architecture', description: 'Self-optimizing workflows powered by real-time neural processing.' },
+          { icon: '🌐', title: 'Universal Integration', description: 'Connect seamlessly with your entire enterprise software stack.' },
+          { icon: '🛡️', title: 'Quantum-Ready Security', description: 'Next-generation encryption protocols to protect your vital data.' }
+        ],
+        animation: 'slide_up'
+      },
+      {
+        id: 'stats', type: 'stats', title: 'Global Impact', subtitle: 'PERFORMANCE METRICS',
+        content: [
+          { value: '10x', label: 'Productivity Boost' }, { value: '99.99%', label: 'Reliability SLA' },
+          { value: '1M+', label: 'Daily Operations' }, { value: '<5ms', label: 'Processing Speed' }
+        ],
+        animation: 'count_up'
+      }
+    ]
+  }
+
+  const cleanPrompt = prompt.charAt(0).toUpperCase() + prompt.slice(1)
+
+  return {
+    website_name: cleanPrompt.split(' ').slice(0, 3).join(' ') || 'Apex',
+    business_type: businessType,
+    design_style: 'Modern Dynamic',
+    color_palette: { primary, secondary, accent, background: bg, text: '#f0f0ff' },
+    typography: { heading_font: headingFont, body_font: 'Inter' },
+    navbar: { logo: cleanPrompt.split(' ')[0] || 'Brand', links: ['Features', 'About', 'Testimonials', 'Contact'] },
+    hero: {
+      headline: `The Next Evolution of ${businessType}`,
+      subheadline: `Experience unmatched quality, innovative design, and powerful performance tailored for ${prompt}.`,
+      cta_primary: 'Explore Now',
+      cta_secondary: 'Learn More',
+      layout: layout,
+      background_type: 'radial',
+      animation: 'particle_float',
+      three_d_object: { type: type, material: 'glass', animation: 'slow_rotation' }
+    },
+    sections: sections,
+    footer: {
+      tagline: `Redefining ${businessType} for a modern world.`,
+      text: `© 2026 ${cleanPrompt.split(' ')[0] || 'Brand'}. All rights reserved.`,
+      links: ['Privacy', 'Terms', 'Contact']
+    }
   }
 }

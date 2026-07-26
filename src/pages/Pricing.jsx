@@ -12,14 +12,29 @@
 
 "use client"
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from '@lib/router-shim'
 import { motion, AnimatePresence } from 'framer-motion'
 import GlassCard from '@components/ui/GlassCard'
 import Badge from '@components/ui/Badge'
 import useAuthStore from '@store/authStore'
 import useSubscriptionStore, { PLANS } from '@store/subscriptionStore'
-import { useScrollAnimation } from '@hooks/useScrollAnimation'
+
+// Inline scroll-visibility hook (replaces deleted useScrollAnimation)
+function useScrollVisible(ref, threshold = 0.15) {
+  const [isVisible, setIsVisible] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setIsVisible(true) },
+      { threshold }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [ref, threshold])
+  return { isVisible }
+}
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
 
@@ -57,7 +72,7 @@ export default function Pricing() {
   const { user } = useAuthStore()
   const navigate  = useNavigate()
   const faqRef    = useRef(null)
-  const { isVisible: faqVisible } = useScrollAnimation(faqRef)
+  const { isVisible: faqVisible } = useScrollVisible(faqRef)
 
   const handleChoosePlan = (planId) => {
     if (!user) {
@@ -525,7 +540,7 @@ const COMPARISON_ROWS = [
 
 function ComparisonTable() {
   const tableRef = useRef(null)
-  const { isVisible } = useScrollAnimation(tableRef)
+  const { isVisible } = useScrollVisible(tableRef)
 
   return (
     <section ref={tableRef} className="py-16 px-6">

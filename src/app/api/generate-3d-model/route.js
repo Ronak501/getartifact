@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+const TRIPO_API_KEY = process.env.TRIPO_API_KEY
 const MESHY_API_KEY = process.env.MESHY_API_KEY
 const MESHY_BASE    = 'https://api.meshy.ai/openapi/v2'
 
@@ -7,11 +8,8 @@ const MESHY_BASE    = 'https://api.meshy.ai/openapi/v2'
  * POST /api/generate-3d-model
  * Body: { modelPrompt: string, style?: string }
  *
- * Calls Meshy AI to generate a .glb 3D model.
- * Returns: { modelUrl, previewUrl, taskId, status, fallback }
- *
- * If MESHY_API_KEY is not set or Meshy fails, returns { modelUrl: null, fallback: true }
- * so the code pipeline can continue using procedural R3F geometry.
+ * Calls Tripo3D AI (if configured) or Meshy AI to generate a .glb 3D model.
+ * Returns: { modelUrl, previewUrl, taskId, status, fallback, provider }
  */
 export async function POST(req) {
   try {
@@ -20,64 +18,157 @@ export async function POST(req) {
       return NextResponse.json({ error: 'modelPrompt is required' }, { status: 400 })
     }
 
-    // ── Graceful fallback if no key ─────────────────────────────────────────
-    if (!MESHY_API_KEY) {
-      console.warn('[generate-3d-model] MESHY_API_KEY not set — returning fallback null.')
-      return NextResponse.json({
-        modelUrl:   null,
-        previewUrl: null,
-        taskId:     null,
-        status:     'fallback',
-        fallback:   true,
-        message:    'No MESHY_API_KEY configured — procedural R3F geometry will be used instead.',
-      })
+    // ── 1. Try Tripo3D AI first ─────────────────────────────────────────────
+    if (TRIPO_API_KEY) {
+      console.log(`[generate-3d-model] Starting Tripo3D generation for: "${modelPrompt}"`)
+      const tripoRes = await generateWithTripo(modelPrompt, TRIPO_API_KEY)
+      if (!tripoRes.fallback) {
+        return NextResponse.json(tripoRes)
+      }
+      console.warn('[generate-3d-model] Tripo3D fallback triggered:', tripoRes.message)
     }
 
-    // ── Step 1: Create Meshy text-to-3D task ────────────────────────────────
+    // ── 2. Try Meshy AI second ──────────────────────────────────────────────
+    if (MESHY_API_KEY) {
+      console.log(`[generate-3d-model] Starting Meshy generation for: "${modelPrompt}"`)
+      const meshyRes = await generateWithMeshy(modelPrompt, style, MESHY_API_KEY)
+      if (!meshyRes.fallback) {
+        return NextResponse.json(meshyRes)
+      }
+      console.warn('[generate-3d-model] Meshy fallback triggered:', meshyRes.message)
+    }
+
+    // ── 3. Graceful procedural fallback ─────────────────────────────────────
+    console.warn('[generate-3d-model] No 3D AI keys configured or APIs failed — returning procedural fallback.')
+    return NextResponse.json({
+      modelUrl:   null,
+      previewUrl: null,
+      taskId:     null,
+      status:     'fallback',
+      fallback:   true,
+      provider:   'procedural',
+      message:    'No 3D API key configured (or API failed) — procedural R3F geometry will be used instead.',
+    })
+
+  } catch (err) {
+    console.error('[generate-3d-model] Error:', err.message)
+    return NextResponse.json({
+      modelUrl: null, previewUrl: null, fallback: true,
+      status: 'error', message: err.message,
+    })
+  }
+}
+
+/* ─── Tripo3D v2 OpenAPI Implementation ───────────────────────────────────── */
+async function generateWithTripo(prompt, apiKey) {
+  try {
+    const createRes = await fetch('https://api.tripo3d.ai/v2/openapi/task', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        type:   'text_to_model',
+        prompt: prompt.slice(0, 500),
+      }),
+    })
+
+    if (!createRes.ok) {
+      const errText = await createRes.text()
+      return { fallback: true, status: 'tripo_error', message: `Tripo create failed (${createRes.status}): ${errText}` }
+    }
+
+    const createData = await createRes.json()
+    const taskId = createData.data?.task_id ?? createData.task_id
+    if (!taskId) {
+      return { fallback: true, status: 'tripo_error', message: 'Tripo returned no task ID' }
+    }
+
+    const MAX_POLLS = 40 // up to 120s (40 x 3s)
+    const POLL_MS   = 3000
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await sleep(POLL_MS)
+
+      const pollRes = await fetch(`https://api.tripo3d.ai/v2/openapi/task/${taskId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      })
+
+      if (!pollRes.ok) continue
+
+      const pollData = await pollRes.json()
+      const task   = pollData.data ?? pollData
+      const status = (task.status ?? '').toLowerCase()
+
+      if (status === 'success' || status === 'succeeded') {
+        const modelUrl   = task.result?.model?.url ?? task.result?.pbr_model?.url ?? task.output?.model ?? null
+        const previewUrl = task.result?.rendered_image?.url ?? task.thumbnail_url ?? null
+
+        return {
+          modelUrl,
+          previewUrl,
+          taskId,
+          status:   'success',
+          fallback: false,
+          provider: 'tripo3d',
+        }
+      }
+
+      if (status === 'failed' || status === 'error' || status === 'cancelled') {
+        console.error('[generate-3d-model] Tripo3D task failed:', task)
+        return { fallback: true, taskId, status: 'tripo_failed', message: task.error ?? 'Tripo task failed' }
+      }
+
+      console.log(`[generate-3d-model] Tripo Poll ${i + 1}: ${status} (${task.progress ?? 0}%)`)
+    }
+
+    return { fallback: true, taskId, status: 'timeout', message: 'Tripo3D polling timed out' }
+  } catch (err) {
+    return { fallback: true, status: 'error', message: err.message }
+  }
+}
+
+/* ─── Meshy AI Implementation ─────────────────────────────────────────────── */
+async function generateWithMeshy(prompt, style, apiKey) {
+  try {
     const createRes = await fetch(`${MESHY_BASE}/text-to-3d`, {
       method: 'POST',
       headers: {
         'Content-Type':  'application/json',
-        'Authorization': `Bearer ${MESHY_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        mode:                 'preview',          // fast preview mode (< 30s)
-        prompt:               modelPrompt.slice(0, 500),
-        art_style:            style,
-        negative_prompt:      'low quality, blurry, distorted, deformed',
-        topology:             'quad',
-        target_polycount:     10000,
-        should_remesh:        true,
-        enable_pbr:           false,
+        mode:             'preview',
+        prompt:           prompt.slice(0, 500),
+        art_style:        style,
+        negative_prompt:  'low quality, blurry, distorted, deformed',
+        topology:         'quad',
+        target_polycount: 10000,
+        should_remesh:    true,
+        enable_pbr:       false,
       }),
     })
 
     if (!createRes.ok) {
       const errBody = await createRes.text()
-      console.error('[generate-3d-model] Meshy create failed:', createRes.status, errBody)
-      return NextResponse.json({ modelUrl: null, previewUrl: null, fallback: true, status: 'meshy_error', message: `Meshy API error ${createRes.status}` })
+      return { fallback: true, status: 'meshy_error', message: `Meshy API error ${createRes.status}: ${errBody}` }
     }
 
     const { result: taskId } = await createRes.json()
-    if (!taskId) {
-      return NextResponse.json({ modelUrl: null, previewUrl: null, fallback: true, status: 'meshy_error', message: 'Meshy returned no task ID' })
-    }
+    if (!taskId) return { fallback: true, status: 'meshy_error', message: 'Meshy returned no task ID' }
 
-    // ── Step 2: Poll for completion ─────────────────────────────────────────
-    const MAX_POLLS   = 40   // up to ~120s (40 × 3s)
-    const POLL_MS     = 3000
+    const MAX_POLLS = 40
+    const POLL_MS   = 3000
 
     for (let i = 0; i < MAX_POLLS; i++) {
       await sleep(POLL_MS)
 
       const pollRes = await fetch(`${MESHY_BASE}/text-to-3d/${taskId}`, {
-        headers: { 'Authorization': `Bearer ${MESHY_API_KEY}` },
+        headers: { 'Authorization': `Bearer ${apiKey}` },
       })
 
-      if (!pollRes.ok) {
-        console.warn(`[generate-3d-model] Poll ${i + 1} returned ${pollRes.status}`)
-        continue
-      }
+      if (!pollRes.ok) continue
 
       const task = await pollRes.json()
       const status = task.status ?? task.progress_message
@@ -86,43 +177,26 @@ export async function POST(req) {
         const modelUrl   = task.model_urls?.glb  ?? task.model_urls?.obj ?? null
         const previewUrl = task.thumbnail_url     ?? task.video_url       ?? null
 
-        return NextResponse.json({
+        return {
           modelUrl,
           previewUrl,
           taskId,
-          status: 'success',
+          status:   'success',
           fallback: false,
-        })
+          provider: 'meshy',
+        }
       }
 
       if (status === 'FAILED' || status === 'EXPIRED') {
-        console.error('[generate-3d-model] Meshy task failed:', task.task_error)
-        return NextResponse.json({
-          modelUrl: null, previewUrl: null, taskId,
-          fallback: true, status: 'meshy_failed',
-          message: task.task_error?.message ?? 'Meshy task failed',
-        })
+        return { fallback: true, taskId, status: 'meshy_failed', message: task.task_error?.message ?? 'Meshy task failed' }
       }
 
-      // Still PENDING or IN_PROGRESS — keep polling
-      console.log(`[generate-3d-model] Poll ${i + 1}: ${status} (${task.progress ?? 0}%)`)
+      console.log(`[generate-3d-model] Meshy Poll ${i + 1}: ${status} (${task.progress ?? 0}%)`)
     }
 
-    // Timeout
-    console.warn('[generate-3d-model] Meshy polling timed out — using fallback')
-    return NextResponse.json({
-      modelUrl: null, previewUrl: null, taskId,
-      fallback: true, status: 'timeout',
-      message: 'Meshy 3D generation timed out — procedural geometry will be used.',
-    })
-
+    return { fallback: true, taskId, status: 'timeout', message: 'Meshy polling timed out' }
   } catch (err) {
-    console.error('[generate-3d-model]', err.message)
-    // Never block the pipeline — return fallback gracefully
-    return NextResponse.json({
-      modelUrl: null, previewUrl: null, fallback: true,
-      status: 'error', message: err.message,
-    })
+    return { fallback: true, status: 'error', message: err.message }
   }
 }
 

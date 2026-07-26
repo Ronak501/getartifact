@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { GoogleAuth } from "google-auth-library";
-import Groq from "groq-sdk";
 import { createClient } from "@supabase/supabase-js";
 
 export const SUPABASE_URL =
@@ -17,7 +16,7 @@ export const googleAI = new GoogleGenAI({
   project: process.env.GOOGLE_PROJECT_ID,
   location: process.env.GOOGLE_LOCATION,
 });
-export const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// Groq removed — AWS Bedrock is now the fallback for text/code generation
 
 export const gauth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/cloud-platform"],
@@ -125,21 +124,74 @@ export const PLAN_MODEL = {
   growth: "gemini",
   pro: "claude",
 };
-async function generateGroq(systemPrompt, userPrompt, isJson) {
-  const payload = {
-    model: "llama-3.3-70b-versatile",
-    max_tokens: isJson ? 8192 : 4096,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  };
-  if (isJson) {
-    payload.response_format = { type: "json_object" };
+
+// --------------------------------------------------------------------------
+// AWS Bedrock — text / code generation (primary provider)
+//
+//   AWS_ACCESS_KEY_ID       — from AWS Console → IAM → Security credentials
+//   AWS_SECRET_ACCESS_KEY   — from AWS Console → IAM → Security credentials
+//   AWS_REGION              — e.g. us-east-1 (default)
+//   AWS_BEDROCK_TEXT_MODEL_ID — model ID (default: us.amazon.nova-pro-v1:0)
+//
+// Uses @aws-sdk/client-bedrock-runtime with the Converse API.
+// Auth is handled by the SDK (AWS Sig V4) — no expiring tokens needed.
+// --------------------------------------------------------------------------
+const BEDROCK_TEXT_MODEL = process.env.AWS_BEDROCK_TEXT_MODEL_ID ?? "us.amazon.nova-pro-v1:0";
+const BEDROCK_REGION     = process.env.AWS_REGION ?? "us-east-1";
+
+function isBedrockConfigured() {
+  const key    = process.env.AWS_ACCESS_KEY_ID ?? "";
+  const secret = process.env.AWS_SECRET_ACCESS_KEY ?? "";
+  return (
+    Boolean(key)    && key    !== "your-access-key-id" &&
+    Boolean(secret) && secret !== "your-secret-access-key"
+  );
+}
+
+async function generateBedrock(systemPrompt, userPrompt, isJson) {
+  if (!isBedrockConfigured()) {
+    throw new Error(
+      "[generateBedrock] AWS credentials not set — " +
+        "add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env",
+    );
   }
 
-  const completion = await groq.chat.completions.create(payload);
-  return completion.choices[0].message.content.trim();
+  // Lazy-import so the SDK is only loaded when Bedrock is actually called
+  const { BedrockRuntimeClient, ConverseCommand } = await import(
+    "@aws-sdk/client-bedrock-runtime"
+  );
+
+  const client = new BedrockRuntimeClient({
+    region:      BEDROCK_REGION,
+    credentials: {
+      accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+  });
+
+  const input = {
+    modelId: BEDROCK_TEXT_MODEL,
+    system:  [{ text: systemPrompt }],
+    messages: [{ role: "user", content: [{ text: userPrompt }] }],
+    inferenceConfig: {
+      maxTokens:   isJson ? 8192 : 4096,
+      temperature: 0.7,
+      topP:        0.9,
+    },
+  };
+
+  console.log(`[generateBedrock] Converse → ${BEDROCK_TEXT_MODEL} (${BEDROCK_REGION})`);
+
+  const response = await client.send(new ConverseCommand(input));
+  const text = response?.output?.message?.content?.[0]?.text ?? "";
+
+  if (!text) {
+    throw new Error(
+      "[generateBedrock] Empty response from Bedrock: " +
+        JSON.stringify(response).slice(0, 300),
+    );
+  }
+  return text.trim();
 }
 
 async function generateGeminiWithRetry(
@@ -181,11 +233,12 @@ async function generateGeminiWithRetry(
 }
 
 export async function generateWithModel(plan, systemPrompt, userPrompt) {
-  const model = PLAN_MODEL[plan] ?? "groq";
+  const model = PLAN_MODEL[plan] ?? "bedrock";
   const isJson =
     systemPrompt.toLowerCase().includes("json") ||
     userPrompt.toLowerCase().includes("json");
 
+  // ── Pro plan: Claude (Anthropic) ────────────────────────────────────────
   if (model === "claude") {
     const msg = await claude.messages.create({
       model: "claude-sonnet-4-6",
@@ -196,28 +249,34 @@ export async function generateWithModel(plan, systemPrompt, userPrompt) {
     return msg.content[0].text.trim();
   }
 
-  if (model === "gemini") {
-    const config = {
-      systemInstruction: systemPrompt,
-      temperature: 0.9,
-      maxOutputTokens: isJson ? 8192 : 4096,
-    };
-    if (isJson) {
-      config.responseMimeType = "application/json";
-    }
-
-    try {
-      return await generateGeminiWithRetry(userPrompt, config, 2);
-    } catch (geminiErr) {
-      console.warn(
-        "[generateWithModel] Gemini exhausted or failed, falling back to Groq:",
-        geminiErr.message,
-      );
-      return await generateGroq(systemPrompt, userPrompt, isJson);
-    }
+  // ── Free / Starter / Growth: Bedrock first, Gemini 2.5 Flash fallback ──
+  // Step 1 — try Bedrock (us.amazon.nova-pro-v1:0 via proxy)
+  try {
+    return await generateBedrock(systemPrompt, userPrompt, isJson);
+  } catch (bedrockErr) {
+    console.warn(
+      "[generateWithModel] Bedrock failed — falling back to Gemini 2.5 Flash:",
+      bedrockErr.message,
+    );
   }
 
-  return await generateGroq(systemPrompt, userPrompt, isJson);
+  // Step 2 — Gemini fallback
+  const geminiConfig = {
+    systemInstruction: systemPrompt,
+    temperature: 0.9,
+    maxOutputTokens: isJson ? 8192 : 4096,
+  };
+  if (isJson) {
+    geminiConfig.responseMimeType = "application/json";
+  }
+
+  try {
+    return await generateGeminiWithRetry(userPrompt, geminiConfig, 2);
+  } catch (geminiErr) {
+    throw new Error(
+      `All AI providers failed. Bedrock unavailable | Gemini: ${geminiErr.message}`,
+    );
+  }
 }
 
 export function parseModelJson(raw) {

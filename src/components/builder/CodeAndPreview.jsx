@@ -42,7 +42,13 @@ export default function CodeAndPreview() {
     </div>
   )
 
-  const previewData = websiteBlueprint ?? buildFromVeoData(blueprint) ?? buildFallbackPreview(blueprint)
+  const basePreview = websiteBlueprint ?? buildFromVeoData(blueprint) ?? buildFallbackPreview(blueprint)
+  const previewData = {
+    ...basePreview,
+    modelAsset: blueprint.modelAsset ?? basePreview.modelAsset ?? null,
+    generatedCode: blueprint.generatedCode ?? basePreview.generatedCode ?? null,
+    model_url: blueprint.model_url ?? basePreview.model_url ?? null,
+  }
 
   const handleCopy = async () => {
     await copyToClipboard(JSON.stringify(previewData, null, 2))
@@ -268,14 +274,7 @@ function buildFromVeoData(bp) {
         id: 'features', type: 'features',
         title: `Why ${veo.website_name ?? 'Us'}`,
         subtitle: veo.brand_personality ?? 'Built different.',
-        content: [
-          { icon: '⚡', title: 'Instant Performance',    description: 'Sub-100ms response times, globally distributed infrastructure.' },
-          { icon: '🎯', title: 'Precision by Design',    description: 'Every detail crafted with intention and deep domain expertise.' },
-          { icon: '🔒', title: 'Enterprise Security',    description: 'SOC2 Type II certified, end-to-end encrypted.' },
-          { icon: '🌍', title: 'Global Scale',           description: '12 regions, 99.99% SLA, automatic failover.' },
-          { icon: '🤖', title: 'AI-Powered',             description: 'Intelligent automation that adapts to your workflow.' },
-          { icon: '📊', title: 'Real-Time Analytics',    description: 'Live dashboards with customisable KPIs and reports.' },
-        ],
+        content: generateSectionContent('features', veo.business_type ?? veo.website_name ?? ''),
         animation: 'slide_up',
         three_d_element: { type: '', material: '', animation: '' },
       },
@@ -283,12 +282,7 @@ function buildFromVeoData(bp) {
         id: 'stats', type: 'stats',
         title: 'By the Numbers',
         subtitle: '',
-        content: [
-          { value: '2.4M+', label: 'Active Users' },
-          { value: '99.9%', label: 'Uptime SLA' },
-          { value: '150+', label: 'Countries' },
-          { value: '<10ms', label: 'Avg. Latency' },
-        ],
+        content: generateSectionContent('stats', veo.business_type ?? veo.website_name ?? ''),
         animation: 'count_up',
         three_d_element: { type: '', material: '', animation: '' },
       },
@@ -339,9 +333,13 @@ function buildFallbackPreview(bp) {
       subheadline:     c.uniqueSellingProposition ?? '',
       cta_primary:     'Get Started',
       cta_secondary:   'Watch Demo',
-      background_type: 'gradient_mesh',
+      background_type: 'radial',
       animation:       'particle_float',
-      three_d_object:  { type: 'neural_network', material: 'glass', animation: 'slow_rotation' },
+      three_d_object:  {
+        type: bp.pages?.[0]?.sections?.[0]?.threeObject ?? detect3DTypeFromText(bp.meta?.prompt ?? c.websiteName ?? ''),
+        material: 'glass',
+        animation: 'slow_rotation'
+      },
     },
     sections: (bp.pages?.[0]?.sections ?? []).slice(0, 4).map(s => {
       const id = s?.id ?? s?.type ?? s?.name ?? ''
@@ -362,19 +360,34 @@ function buildFallbackPreview(bp) {
         type:     mapSectionType(id),
         title:    s?.content?.heading ?? s?.name ?? '',
         subtitle: s?.purpose ?? '',
-        content:  extractedContent || generateSectionContent(id),
+        content:  extractedContent || generateSectionContent(id, bp.meta?.prompt ?? c.websiteName ?? ''),
         animation: s?.animation ?? 'slide_up',
         three_d_element: { type: '', material: '', animation: '' },
       }
     }),
     footer: {
       tagline: c.tagline ?? '',
-      text:    `© 2025 ${c.websiteName}. All rights reserved.`,
+      text:    `© 2026 ${c.websiteName ?? 'Brand'}. All rights reserved.`,
       links:   ['Privacy', 'Terms', 'Contact'],
     },
     animations: { scroll_effect: 'parallax', page_transition: 'fade', hover_effect: 'scale' },
     three_js: { camera: { position: [0, 0, 5] }, lighting: { type: 'point', intensity: 2 }, objects: [] },
   }
+}
+
+function detect3DTypeFromText(text) {
+  const t = (text ?? '').toLowerCase()
+  if (/spider|marvel|hero|comic|avenger|batman|super/i.test(t)) return 'spiderman'
+  if (/airpod|earbud|headphone|audio|sound|music|podcast|speaker/i.test(t)) return 'airpods'
+  if (/car|auto|racing|vehicle|drive|motor|speed/i.test(t)) return 'car'
+  if (/watch|time|chronograph|rolex|timepiece/i.test(t)) return 'watch'
+  if (/food|bakery|coffee|restaurant|cake|pizza/i.test(t)) return 'morph'
+  if (/crypto|nft|blockchain|web3|token/i.test(t)) return 'crystal'
+  if (/gym|fitness|sport|health|workout/i.test(t)) return 'torus'
+  if (/space|planet|earth|cosmos|travel/i.test(t)) return 'planet'
+  if (/bio|med|doctor|gene|dna|health/i.test(t)) return 'dna'
+  if (/hologram|wireframe|cyber|security/i.test(t)) return 'hologram'
+  return 'orbital'
 }
 
 function mapSectionType(id) {
@@ -388,16 +401,45 @@ function mapSectionType(id) {
   return 'features'
 }
 
-function generateSectionContent(id) {
+function generateSectionContent(id, prompt) {
   const s = (id ?? '').toLowerCase()
-  if (s.includes('stat')) return [
-    { value: '50K+', label: 'Users' }, { value: '99.9%', label: 'Uptime' },
-    { value: '10B+', label: 'API Calls' }, { value: '<10ms', label: 'Latency' },
+  const p = (prompt ?? '').toLowerCase()
+
+  if (s.includes('stat')) {
+    if (/food|bakery|coffee|restaurant/i.test(p)) return [
+      { value: '15K+', label: 'Happy Guests' }, { value: '100%', label: 'Organic Ingredients' },
+      { value: 'Daily', label: 'Fresh Baked' }, { value: '4.9★', label: 'Customer Rating' }
+    ]
+    if (/crypto|web3|defi/i.test(p)) return [
+      { value: '$4.2B', label: 'Value Locked' }, { value: '350K+', label: 'Active Wallets' },
+      { value: '0.01s', label: 'Block Speed' }, { value: '$0', label: 'Gas Failures' }
+    ]
+    return [
+      { value: '50K+', label: 'Active Users' }, { value: '99.9%', label: 'Uptime SLA' },
+      { value: '10B+', label: 'Operations' }, { value: '<10ms', label: 'Avg Latency' }
+    ]
+  }
+  if (s.includes('cta')) return [{ cta_primary: 'Get Started Now', cta_secondary: 'Learn More' }]
+
+  if (/food|bakery|coffee|restaurant/i.test(p)) return [
+    { icon: '☕', title: 'Specialty Roasts', description: 'Ethically sourced beans from organic high-altitude farms.' },
+    { icon: '🥐', title: 'Fresh Pastries', description: 'Baked fresh every morning using artisanal recipes.' },
+    { icon: '🌿', title: '100% Organic', description: 'No artificial additives, preservatives, or refined sugars.' }
   ]
-  if (s.includes('cta')) return [{ cta_primary: 'Get Started Free', cta_secondary: 'Learn More' }]
+  if (/crypto|web3|defi/i.test(p)) return [
+    { icon: '💎', title: 'Zero-Gas Swaps', description: 'Instant liquidity execution with optimized cryptographic routing.' },
+    { icon: '🛡️', title: 'Audited Security', description: 'Multi-sig vault protection verified by top security firms.' },
+    { icon: '⚡', title: 'Cross-Chain Bridge', description: 'Seamless asset transfer across 15+ decentralized networks.' }
+  ]
+  if (/gym|fitness|sport|workout/i.test(p)) return [
+    { icon: '🔥', title: 'HIIT Conditioning', description: 'High-intensity sessions designed for maximum metabolic efficiency.' },
+    { icon: '💪', title: 'Strength & Power', description: 'Elite lifting coaching and functional hypertrophy training.' },
+    { icon: '🧘', title: 'Active Recovery', description: 'Guided mobility, cryotherapy, and deep tissue restoration.' }
+  ]
+
   return [
-    { icon: '⚡', title: 'Lightning Fast',      description: 'Built for speed and scale from the ground up.' },
-    { icon: '🔒', title: 'Secure by Default',    description: 'End-to-end encryption with zero-trust architecture.' },
-    { icon: '🌐', title: 'Global Infrastructure', description: 'Deploy to 32 regions with automatic failover.' },
+    { icon: '⚡', title: 'Intelligent Speed', description: 'Engineered for sub-100ms response times and global scale.' },
+    { icon: '🔒', title: 'Secure Architecture', description: 'End-to-end encryption with zero-trust security by default.' },
+    { icon: '🌐', title: 'Universal Sync', description: 'Connects seamlessly with your existing tools and workflows.' }
   ]
 }
