@@ -102,38 +102,38 @@ function pick3DType(blueprint) {
     blueprint?.hero?.headline,
     blueprint?.hero?.subheadline,
     blueprint?.cinematic_3d_scene?.main_3d_subject,
+    blueprint?.cinematic_3d_scene?.scene_type,
     blueprint?.hero?.['3d_integration'],
-    blueprint?.hero?.three_d_object?.type,
-    JSON.stringify(blueprint || {})
+    blueprint?.hero?.three_d_object?.type
   ].filter(Boolean).join(' ').toLowerCase()
 
-  if (/burger|food|pizza|bakery|cake|coffee|restaurant|drink|eat|cafe|kitchen|gourmet|culinary|savor|menu|dining|chef|taste|meal|dish|recipe|cooking|bistro|snack|beverage|wine|brew/i.test(fullText)) return 'food'
-  if (/spider|marvel|hero|comic|avenger|batman|super|collectible|action figure/i.test(fullText)) return 'spiderman'
-  if (/airpod|earbud|headphone|audio|sound|music|podcast|speaker|acoustic/i.test(fullText)) return 'airpods'
-  if (/car|auto|racing|vehicle|drive|motor|speed|tesla|ferrari|porsche/i.test(fullText)) return 'car'
-  if (/watch|time|chronograph|rolex|timepiece|luxury/i.test(fullText)) return 'watch'
+  if (/airpod|earbud|headphone|audio|sound|music|podcast|speaker|acoustic|stereo|hifi|earphone|bass/i.test(fullText)) return 'airpods'
+  if (/spider|marvel|hero\b|comic|avenger|batman|superhero|action figure/i.test(fullText)) return 'spiderman'
+  if (/car\b|auto|racing|vehicle|drive|motor|speed|tesla|ferrari|porsche/i.test(fullText)) return 'car'
+  if (/watch\b|timepiece|chronograph|rolex|luxury watch/i.test(fullText)) return 'watch'
   if (/shoe|sneaker|nike|adidas|footwear|boot|sandal|jordans/i.test(fullText)) return 'sneaker'
-  if (/game|gaming|console|station|esport|controller|ps5|xbox|nintendo|play/i.test(fullText)) return 'gaming'
-  if (/crypto|coin|bitcoin|nft|finance|trading|money|bank|wealth|token|blockchain|solana|ethereum/i.test(fullText)) return 'crypto'
-  if (/gym|fitness|workout|sport|bodybuilding|train|muscle|yoga|health club/i.test(fullText)) return 'fitness'
+  if (/game|gaming|console|playstation|esport|controller|ps5|xbox|nintendo|video game/i.test(fullText)) return 'gaming'
+  if (/crypto|coin|bitcoin|nft|trading|token|blockchain|solana|ethereum/i.test(fullText)) return 'crypto'
+  if (/gym|fitness|workout|sport|bodybuilding|train|muscle|yoga/i.test(fullText)) return 'fitness'
   if (/house|estate|building|architect|home|construction|property|realty|condo/i.test(fullText)) return 'realestate'
-  if (/robot|cyborg|android|mech|bot|ai agent|artificial intelligence/i.test(fullText)) return 'robot'
+  if (/robot|cyborg|android|mech|bot\b|ai agent|artificial intelligence/i.test(fullText)) return 'robot'
   if (/travel|tour|vacation|hotel|resort|flight|trip|journey|destination|adventure|voyage|explore|passport|cruise|tourism/i.test(fullText)) return 'travel'
-  if (/fashion|cloth|wear|style|apparel|dress|boutique|vogue|shirt|outfit|beauty|cosmetic|makeup|spa|salon|skin|hair|jewelry/i.test(fullText)) return 'beauty'
-  if (/pet|dog|cat|animal|vet|puppy|kitten|hound|paw|bird|aquarium|zoo|wildlife/i.test(fullText)) return 'pet'
-  if (/eco|green|solar|energy|plant|nature|tree|forest|leaf|environment|renew|clean energy|sustain|garden|earth/i.test(fullText)) return 'eco'
-  if (/edu|school|learn|course|study|book|read|academy|student|teach|tutor|class|college|university|library|knowledge|degree/i.test(fullText)) return 'education'
-  if (/law|legal|attorney|lawyer|court|justice|finance|invest|wealth|bank|money|capital|consult|firm|corporate|business|trade|stock/i.test(fullText)) return 'legal'
+  if (/fashion|apparel|dress|boutique|vogue|outfit|beauty|cosmetic|makeup|spa\b|salon|jewelry/i.test(fullText)) return 'beauty'
+  if (/pet\b|dog|cat\b|animal|vet\b|puppy|kitten|paw\b|wildlife/i.test(fullText)) return 'pet'
+  if (/eco\b|green energy|solar|plant\b|nature|tree|forest|leaf|environment|sustain|earth/i.test(fullText)) return 'eco'
+  if (/edu|school|course|study|academy|student|teach|tutor|class|college|university|library|knowledge|degree/i.test(fullText)) return 'education'
+  if (/law\b|legal|attorney|lawyer|court|justice|invest|wealth|consult|corporate/i.test(fullText)) return 'legal'
+  if (/burger|food\b|pizza|bakery|cake\b|coffee|restaurant|drink|eat\b|cafe\b|gourmet|culinary|savor|dining|chef\b|meal|dish|recipe|cooking|bistro|snack|beverage|wine|brew/i.test(fullText)) return 'food'
   if (/crystal|gem|diamond|facet|jewel|sapphire|ruby/i.test(fullText)) return 'crystal'
-  if (/neural|network|brain|node|synapse|graph|intelligence|data science/i.test(fullText)) return 'neural'
+  if (/neural|network|brain|synapse|graph|intelligence|data science/i.test(fullText)) return 'neural'
   if (/dna|helix|cell|bio|protein|gene|molecule|medical|pharma|biotech|doctor/i.test(fullText)) return 'dna'
   if (/particle|dust|cloud|scatter|field|star|cosmos|space|astronomy/i.test(fullText)) return 'particles'
-  if (/planet|globe|earth|sphere|world|moon|galaxy|solar|universe/i.test(fullText)) return 'planet'
+  if (/planet\b|globe|earth\b|sphere|moon|galaxy|solar system|universe/i.test(fullText)) return 'planet'
   if (/torus|knot|twist|ribbon|coil|loop/i.test(fullText)) return 'torus'
   if (/holo|hologram|wireframe|projection|tech|futurist|cyber|metaverse/i.test(fullText)) return 'hologram'
   if (/warp|vortex|tunnel|portal|wormhole|dimension/i.test(fullText)) return 'warp'
-  if (/morph|blob|liquid|fluid|plasma|glass|water|ocean/i.test(fullText)) return 'morph'
-  if (/matrix|code|rain|cascade|terminal|software|developer|coding|web|app/i.test(fullText)) return 'matrix'
+  if (/morph|blob|liquid|fluid|plasma|water\b|ocean/i.test(fullText)) return 'morph'
+  if (/matrix\b|code rain|cascade|terminal|developer|coding/i.test(fullText)) return 'matrix'
   if (/icosa|polyhedron|prism|geometry/i.test(fullText)) return 'icosa'
 
   const seed = (blueprint?.website_name || blueprint?.creative_concept?.website_name || blueprint?.meta?.prompt || 'default')

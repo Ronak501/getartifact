@@ -506,47 +506,222 @@ function scene_abstract(p, a) {
 }`
 }
 
+function scene_airpods(p, a) {
+  return `function SceneContent() {
+  const groupRef = useRef(null)
+  useFrame((state, dt) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += dt * 0.45
+      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 1.5) * 0.15
+    }
+  })
+  return (
+    <group ref={groupRef}>
+      <mesh position={[-0.7, 0, 0]} rotation={[0.2, 0.4, -0.2]}>
+        <capsuleGeometry args={[0.38, 0.65, 16, 32]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.08} metalness={0.9} />
+      </mesh>
+      <mesh position={[0.7, 0, 0]} rotation={[0.2, -0.4, 0.2]}>
+        <capsuleGeometry args={[0.38, 0.65, 16, 32]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.08} metalness={0.9} />
+      </mesh>
+      <mesh rotation={[1.57, 0, 0]}>
+        <torusGeometry args={[1.2, 0.04, 16, 64]} />
+        <meshStandardMaterial color="${a}" emissive="${a}" emissiveIntensity={1.5} />
+      </mesh>
+      <mesh rotation={[1.57, 0, 0]} scale={1.3}>
+        <torusGeometry args={[1.2, 0.02, 16, 64]} />
+        <meshStandardMaterial color="${p}" emissive="${p}" emissiveIntensity={0.8} />
+      </mesh>
+    </group>
+  )
+}`
+}
+
+function scene_spiderman(p, a) {
+  return `function SceneContent() {
+  const groupRef = useRef(null)
+  useFrame((state, dt) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += dt * 0.35
+      groupRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 2) * 0.1
+    }
+  })
+  return (
+    <group ref={groupRef}>
+      <mesh>
+        <octahedronGeometry args={[1.3, 2]} />
+        <meshStandardMaterial color="#e60026" roughness={0.2} metalness={0.8} emissive="#ff003c" emissiveIntensity={0.4} />
+      </mesh>
+      <mesh scale={1.2}>
+        <torusKnotGeometry args={[0.9, 0.1, 120, 16, 2, 5]} />
+        <meshStandardMaterial color="#0055ff" roughness={0.1} metalness={0.9} emissive="#0055ff" emissiveIntensity={0.8} />
+      </mesh>
+      <mesh rotation={[1.57, 0, 0]}>
+        <ringGeometry args={[1.6, 1.7, 32]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={2} side={2} />
+      </mesh>
+    </group>
+  )
+}`
+}
+
+function scene_food(p, a) {
+  return `function SceneContent() {
+  const groupRef = useRef(null)
+  useFrame((state, dt) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += dt * 0.4
+      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 1.5) * 0.1
+    }
+  })
+  return (
+    <group ref={groupRef} scale={1.1}>
+      <mesh position={[0, -0.65, 0]}>
+        <cylinderGeometry args={[0.95, 0.85, 0.35, 32]} />
+        <meshStandardMaterial color="#d4883a" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, -0.32, 0]}>
+        <cylinderGeometry args={[1.02, 1.02, 0.28, 32]} />
+        <meshStandardMaterial color="#5c2c16" roughness={0.3} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, 0.0, 0]} rotation={[0.08, 0.3, 0]}>
+        <boxGeometry args={[1.9, 0.08, 1.9]} />
+        <meshStandardMaterial color="#ffc800" roughness={0.4} emissive="#ff9900" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, 0.25, 0]}>
+        <cylinderGeometry args={[0.98, 0.98, 0.18, 32]} />
+        <meshStandardMaterial color="#ff2200" roughness={0.2} />
+      </mesh>
+      <mesh position={[0, 0.45, 0]}>
+        <cylinderGeometry args={[1.05, 1.05, 0.15, 32]} />
+        <meshStandardMaterial color="#33cc11" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.75, 0]}>
+        <sphereGeometry args={[0.95, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
+        <meshStandardMaterial color="#e59942" roughness={0.5} />
+      </mesh>
+      <mesh rotation={[1.57, 0, 0]} scale={1.5}>
+        <torusGeometry args={[1, 0.02, 16, 64]} />
+        <meshStandardMaterial color="${a}" emissive="${a}" emissiveIntensity={1} />
+      </mesh>
+    </group>
+  )
+}`
+}
+
+function scene_car(p, a) {
+  return `function SceneContent() {
+  const groupRef = useRef(null)
+  useFrame((state, dt) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += dt * 0.5
+      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 2) * 0.1
+    }
+  })
+  return (
+    <group ref={groupRef}>
+      <mesh position={[0, -0.2, 0]} scale={[1.8, 0.4, 0.9]}>
+        <boxGeometry args={[1.6, 0.8, 1.4]} />
+        <meshStandardMaterial color="${p}" roughness={0.1} metalness={0.9} />
+      </mesh>
+      <mesh position={[-0.1, 0.2, 0]} scale={[1, 0.35, 0.8]}>
+        <sphereGeometry args={[0.9, 16, 16]} />
+        <meshStandardMaterial color="#111111" roughness={0.05} metalness={0.95} />
+      </mesh>
+      <mesh position={[1.2, -0.15, 0.5]} rotation={[1.57, 0, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 0.2, 24]} />
+        <meshStandardMaterial color="#222222" roughness={0.8} />
+      </mesh>
+      <mesh position={[-1.2, -0.15, 0.5]} rotation={[1.57, 0, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 0.2, 24]} />
+        <meshStandardMaterial color="#222222" roughness={0.8} />
+      </mesh>
+      <mesh position={[1.2, -0.15, -0.5]} rotation={[1.57, 0, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 0.2, 24]} />
+        <meshStandardMaterial color="#222222" roughness={0.8} />
+      </mesh>
+      <mesh position={[-1.2, -0.15, -0.5]} rotation={[1.57, 0, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 0.2, 24]} />
+        <meshStandardMaterial color="#222222" roughness={0.8} />
+      </mesh>
+      <mesh rotation={[1.57, 0, 0]} scale={1.6}>
+        <torusGeometry args={[1.2, 0.03, 16, 64]} />
+        <meshStandardMaterial color="${a}" emissive="${a}" emissiveIntensity={1.5} />
+      </mesh>
+    </group>
+  )
+}`
+}
+
 // ─── Scene dispatcher ──────────────────────────────────────────────────────────
 
 const SCENE_MAP = {
-  web:     scene_web,
-  ar:      scene_ar,
-  hand:    scene_hand,
-  galaxy:  scene_galaxy,
-  music:   scene_music,
-  city:    scene_city,
-  crystal: scene_crystal,
-  dna:     scene_dna,
-  neural:  scene_neural,
-  planet:  scene_planet,
-  wave:    scene_wave,
-  chart:   scene_chart,
-  robot:   scene_robot,
-  abstract: scene_abstract,
+  web:       scene_web,
+  ar:        scene_ar,
+  hand:      scene_hand,
+  galaxy:    scene_galaxy,
+  music:     scene_airpods,
+  airpods:   scene_airpods,
+  spiderman: scene_spiderman,
+  food:      scene_food,
+  burger:    scene_food,
+  car:       scene_car,
+  city:      scene_city,
+  crystal:   scene_crystal,
+  dna:       scene_dna,
+  neural:    scene_neural,
+  planet:    scene_planet,
+  wave:      scene_wave,
+  chart:     scene_chart,
+  robot:     scene_robot,
+  abstract:  scene_abstract,
+  watch:     scene_crystal,
+  sneaker:   scene_car,
+  gaming:    scene_airpods,
+  crypto:    scene_crystal,
+  fitness:   scene_wave,
+  realestate: scene_city,
+  travel:    scene_planet,
+  beauty:    scene_crystal,
+  pet:       scene_wave,
+  eco:       scene_planet,
+  education: scene_neural,
+  legal:     scene_city,
 }
 
 function detectSceneType(subject, concept) {
   const s = (subject + ' ' + concept).toLowerCase()
-  // Direct match — if AI sets scene_type exactly, honour it immediately
-  const exactTypes = ['web','ar','hand','robot','galaxy','wave','music','city','crystal','dna','neural','planet','chart','abstract']
+  const exactTypes = ['web','ar','hand','robot','galaxy','wave','music','airpods','spiderman','food','burger','car','city','crystal','dna','neural','planet','chart','abstract','watch','sneaker','gaming','crypto','fitness','realestate','travel','beauty','pet','eco','education','legal']
   for (const t of exactTypes) {
     if (s.startsWith(t) || s.includes(` ${t} `) || s === t) return t
   }
-  // Keyword fallback
-  if (/web|spider|network|link|node|connect/.test(s))              return 'web'
+  if (/airpod|earbud|headphone|audio|sound|music|podcast|speaker|acoustic|stereo|hifi|earphone|bass/i.test(s)) return 'airpods'
+  if (/spider|marvel|hero\b|comic|avenger|batman|superhero|action figure/i.test(s)) return 'spiderman'
+  if (/car\b|auto|racing|vehicle|drive|motor|speed|tesla|ferrari|porsche/i.test(s)) return 'car'
+  if (/watch\b|timepiece|chronograph|rolex|luxury watch/i.test(s)) return 'watch'
+  if (/shoe|sneaker|nike|adidas|footwear|boot|sandal|jordans/i.test(s)) return 'sneaker'
+  if (/game|gaming|console|playstation|esport|controller|ps5|xbox|nintendo|video game/i.test(s)) return 'gaming'
+  if (/crypto|coin|bitcoin|nft|trading|token|blockchain|solana|ethereum/i.test(s)) return 'crypto'
+  if (/gym|fitness|workout|sport|bodybuilding|train|muscle|yoga/i.test(s)) return 'fitness'
+  if (/house|estate|building|architect|home|construction|property|realty|condo/i.test(s)) return 'realestate'
+  if (/robot|cyborg|android|mech|bot\b|ai agent|artificial intelligence/i.test(s)) return 'robot'
+  if (/travel|tour|vacation|hotel|resort|flight|trip|journey|destination|adventure|voyage|explore|passport|cruise|tourism/i.test(s)) return 'travel'
+  if (/fashion|apparel|dress|boutique|vogue|outfit|beauty|cosmetic|makeup|spa\b|salon|jewelry/i.test(s)) return 'beauty'
+  if (/pet\b|dog|cat\b|animal|vet\b|puppy|kitten|paw\b|wildlife/i.test(s)) return 'pet'
+  if (/eco\b|green energy|solar|plant\b|nature|tree|forest|leaf|environment|sustain|earth/i.test(s)) return 'eco'
+  if (/edu|school|course|study|academy|student|teach|tutor|class|college|university|library|knowledge|degree/i.test(s)) return 'education'
+  if (/law\b|legal|attorney|lawyer|court|justice|invest|wealth|consult|corporate/i.test(s)) return 'legal'
+  if (/burger|food\b|pizza|bakery|cake\b|coffee|restaurant|drink|eat\b|cafe\b|gourmet|culinary|savor|dining|chef\b|meal|dish|recipe|cooking|bistro|snack|beverage|wine|brew/i.test(s)) return 'food'
+  if (/crystal|gem|diamond|facet|jewel|sapphire|ruby/i.test(s)) return 'crystal'
+  if (/neural|network|brain|synapse|graph|intelligence|data science/i.test(s)) return 'neural'
+  if (/dna|helix|cell|bio|protein|gene|molecule|medical|pharma|biotech|doctor/i.test(s)) return 'dna'
+  if (/particle|dust|cloud|scatter|field|star|cosmos|space|astronomy/i.test(s)) return 'galaxy'
+  if (/planet\b|globe|earth\b|sphere|moon|galaxy|solar system|universe/i.test(s)) return 'planet'
+  if (/\bwave|ocean|water|sea|fluid|liquid|surf/.test(s)) return 'wave'
   if (/ar\b|vr\b|goggles|glasses|lens|headset|xr|mixed reality/.test(s)) return 'ar'
-  if (/\bhand\b|finger|glove|palm|reach|touch/.test(s))           return 'hand'
-  if (/robot|mech|android|drone|cyborg/.test(s))                  return 'robot'
-  if (/galaxy|cosmos|nebula|universe|astro|space/.test(s))        return 'galaxy'
-  if (/\bwave|ocean|water|sea|fluid|liquid|surf/.test(s))         return 'wave'
-  if (/music|sound|audio|frequency|beat|dj|vinyl|song/.test(s))  return 'music'
-  if (/city|building|urban|skyline|tower|architect/.test(s))      return 'city'
-  if (/crystal|gem|diamond|jewel|prism/.test(s))                  return 'crystal'
-  if (/dna|helix|molecule|bio|pharma|gene/.test(s))               return 'dna'
-  if (/brain|neural|ai\b|chip|circuit|deep learn/.test(s))        return 'neural'
-  if (/planet|globe|earth|world|orbit/.test(s))                   return 'planet'
+  if (/\bhand\b|finger|glove|palm|reach|touch/.test(s)) return 'hand'
   if (/chart|graph|data|analytics|stock|finance|fintech/.test(s)) return 'chart'
-  if (/tattoo|ink|art|studio|creative|design|fashion|cloth/.test(s)) return 'abstract'
   return 'abstract'
 }
 
