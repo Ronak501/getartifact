@@ -158,6 +158,10 @@ export default function Navbar() {
                       className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/[0.05]">
                       Dashboard
                     </Link>
+                    <Link to="/history" onClick={() => setMobileOpen(false)}
+                      className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/[0.05]">
+                      History
+                    </Link>
                     <button onClick={() => { signOut(); setMobileOpen(false) }}
                       className="text-left px-4 py-2.5 rounded-xl text-sm font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/[0.08]">
                       Sign Out
@@ -243,6 +247,7 @@ function UserMenu({ user, profile, onSignOut }) {
             {/* Menu items */}
             <div className="p-1.5 flex flex-col gap-0.5">
               <DropItem icon="⚡" label="Dashboard" onClick={() => go('/dashboard')} />
+              <DropItem icon="🕘" label="History"   onClick={() => go('/history')} />
               <DropItem icon="🏗️" label="Builder"   onClick={() => go('/builder')} />
             </div>
 
