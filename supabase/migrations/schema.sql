@@ -89,7 +89,30 @@ CREATE POLICY "Public blueprints are readable by anyone"
 CREATE INDEX IF NOT EXISTS blueprints_user_id_idx ON public.blueprints (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS blueprints_public_idx   ON public.blueprints (is_public, created_at DESC) WHERE is_public = TRUE;
 
--- ── 3. Veo Jobs ───────────────────────────────────────────────────────────────
+-- ── 3. Artifacts ───────────────────────────────────────────────────────────────
+-- Stores generated artifacts for history/reuse management.
+CREATE TABLE IF NOT EXISTS public.artifacts (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  prompt          TEXT,
+  output          JSONB       NOT NULL,
+  model_used      VARCHAR(255),
+  is_favorited    BOOLEAN     NOT NULL DEFAULT FALSE,
+  metadata        JSONB
+);
+
+ALTER TABLE public.artifacts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own artifacts"
+  ON public.artifacts FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_artifacts_user_id    ON public.artifacts (user_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_created_at ON public.artifacts (created_at DESC);
+
+-- ── 4. Veo Jobs ───────────────────────────────────────────────────────────────
 -- Tracks individual Veo 2 video generation requests.
 CREATE TABLE IF NOT EXISTS public.veo_jobs (
   id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -114,7 +137,7 @@ ALTER TABLE public.veo_jobs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own veo jobs"
   ON public.veo_jobs FOR ALL USING (auth.uid() = user_id);
 
--- ── 4. Shared / Exports ───────────────────────────────────────────────────────
+-- ── 5. Shared / Exports ───────────────────────────────────────────────────────
 -- Public share links for blueprints.
 CREATE TABLE IF NOT EXISTS public.shared_blueprints (
   id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -138,7 +161,7 @@ CREATE POLICY "Blueprint owner can manage shares"
     )
   );
 
--- ── 5. Helper: updated_at trigger ─────────────────────────────────────────────
+-- ── 6. Helper: updated_at trigger ─────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -155,7 +178,7 @@ CREATE TRIGGER set_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- ── 6. Helper view: blueprint_summary ─────────────────────────────────────────
+-- ── 7. Helper view: blueprint_summary ─────────────────────────────────────────
 -- Lightweight view (no heavy JSONB) for listing cards in the Dashboard.
 CREATE OR REPLACE VIEW public.blueprint_summary AS
 SELECT

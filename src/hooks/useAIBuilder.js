@@ -5,6 +5,7 @@ import useBlueprintStore, { PHASES, OUTPUT_TABS } from '@store/blueprintStore'
 import useAuthStore    from '@store/authStore'
 import useCreditStore  from '@store/creditStore'
 import { supabase }    from '@lib/supabase'
+import { addArtifact } from '@lib/artifactStore'
 
 /**
  * useAIBuilder — orchestrates the new parallel dual-track pipeline:
@@ -184,6 +185,21 @@ export function useAIBuilder() {
           generated_code_json: unifiedBlueprint.generatedCode,
         }).then(({ error }) => {
           if (error) console.warn('[Supabase] Sync failed:', error.message)
+        })
+
+        addArtifact({
+          user_id: user.id,
+          prompt: input,
+          output: unifiedBlueprint,
+          model_used: rawBlueprint?.meta?.model ?? null,
+          metadata: {
+            source: 'builder',
+            plan,
+            hasModelAsset: Boolean(assetData?.modelUrl),
+            usedFallbackAsset: Boolean(assetData?.fallback),
+          },
+        }).then(({ error }) => {
+          if (error) console.warn('[Artifacts] Save failed:', error.message)
         })
       }
 
